@@ -16,3 +16,12 @@ ordered-set
 cn2an
 pypinyin_dict
 jieba
+fugashi 
+jaconv
+mojimoji
+fugashi[unidic-lite]
+unidic-lite
+unidic-mecab
+unidic-mecab-python
+unidic-lite-python
+unidic-mecab-python3
