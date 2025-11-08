@@ -277,77 +277,67 @@ class SpeechProcessor:
         self.selected_translation_model = selected_translation_model
         self.selected_kokoro_voice = selected_kokoro_voice
         
+        # 强制使用GPU
+        self.device = "cuda"
+        self.model_cache = {}
+        self.stt_model_size = stt_model_size
+        
+        # 初始化模型字典
+        self.translation_models = {}
+        self.translation_tokenizers = {}
+        
         logger.info(f"Target translation language set to: {self.target_lang}")
         logger.info(f"Source language for STT set to: {self.source_lang if self.source_lang != AUTO_DETECT_CODE else 'Automatic Detection'}")
         logger.info(f"Selected Kokoro voice: {self.selected_kokoro_voice}")
+        logger.info(f"Using device: {self.device}")
 
-        # 强制使用CPU以避免CUDA问题
-        if device == "auto":
-            device = "cpu"
-        logger.info(f"Loading Whisper STT model ({stt_model_size}) on {device}...")
-        compute_type = "float32"  # CPU使用float32
-        self.stt_model = WhisperModel(stt_model_size, device=device, compute_type=compute_type)
-
-        self.supported_translation_langs = SUPPORTED_TRANSLATION_LANG_MAP
-        self.nllb_lang_codes = NLLB_LANG_CODE_MAP
-
-        self.translation_models = {}
-        self.translation_tokenizers = {}
+        # 预加载所有模型到GPU
+        self._preload_models()
         
         logger.info("Initializing PyAudio for TTS playback...")
         self.pa = pyaudio.PyAudio()
         
         self.tts_playing_lock = threading.Lock()
         
-        # 初始化 Kokoro TTS (强制使用CPU)
+        self._start_threads()
+
+    def _preload_models(self):
+        """预加载所有模型到GPU"""
+        logger.info("Preloading models to GPU...")
+        
+        # 预加载STT模型
+        logger.info(f"Loading Whisper STT model ({self.stt_model_size})...")
+        self.stt_model = WhisperModel(self.stt_model_size, device="cuda", compute_type="float16")
+        
+        # 预加载翻译模型
+        self._load_specific_translation_model(self.selected_translation_model)
+        
+        # 预加载TTS模型
+        self._preload_tts_model()
+        
+        logger.info("All models preloaded to GPU")
+
+    def _preload_tts_model(self):
+        """预加载TTS模型到GPU"""
         try:
-            # 设置环境变量强制使用CPU
-            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-            torch.set_num_threads(4)  # 限制CPU线程数
-            
             from kokoro import KPipeline
             kokoro_lang = KOKORO_LANG_MAP.get(self.target_lang, 'a')
-            logger.info(f"Initializing Kokoro TTS with language code: {kokoro_lang} (CPU mode)")
+            logger.info(f"Initializing Kokoro TTS with language code: {kokoro_lang}")
             
-            # 查找模型文件
             model_path = find_kokoro_model_file()
             if not model_path:
                 raise FileNotFoundError(f"No Kokoro model found in {KOKORO_MODEL_PATH}")
             
-            # 尝试不同的初始化方式
-            try:
-                # 新版API - 不需要voices_dir参数
-                self.kokoro_pipeline = KPipeline(lang_code=kokoro_lang, model=model_path, device='cpu')
-                logger.info("Kokoro TTS initialized successfully with new API")
-            except TypeError as e:
-                if 'voices_dir' in str(e):
-                    # 尝试旧版API
-                    try:
-                        self.kokoro_pipeline = KPipeline(lang_code=kokoro_lang, model=model_path, device='cpu')
-                        logger.info("Kokoro TTS initialized successfully (without voices_dir)")
-                    except Exception as e2:
-                        logger.error(f"Failed to initialize Kokoro with both API versions: {e2}")
-                        raise
-                else:
-                    raise
-            
-            # 设置voices路径
-            voices_dir = os.path.join(KOKORO_MODEL_PATH, 'voices')
-            if hasattr(self.kokoro_pipeline, 'voices_dir'):
-                self.kokoro_pipeline.voices_dir = voices_dir
-            elif hasattr(self.kokoro_pipeline, 'load_voice'):
-                # 尝试手动加载voice文件
-                voice_path = os.path.join(voices_dir, f"{self.selected_kokoro_voice}.pt")
-                if os.path.exists(voice_path):
-                    self.kokoro_voice_path = voice_path
-                else:
-                    logger.warning(f"Voice file not found: {voice_path}")
+            self.kokoro_pipeline = KPipeline(
+                lang_code=kokoro_lang,
+                model=model_path,
+                device='cuda'
+            )
+            logger.info("Kokoro TTS initialized successfully on GPU")
             
         except Exception as e:
             logger.error(f"Failed to initialize Kokoro TTS: {e}")
             raise
-
-        self._start_threads()
 
     def _start_threads(self):
         self.stop_threads = False
@@ -487,30 +477,21 @@ class SpeechProcessor:
             logger.info(f"Loading specific translation model: {model_name}...")
 
             if model_name.startswith("Helsinki-NLP/opus-mt-"):
-                try:
-                    tokenizer = MarianTokenizer.from_pretrained(model_name)
-                    model = MarianMTModel.from_pretrained(model_name)
-                except Exception as e:
-                    logger.error(f"Failed to load Helsinki-NLP model {model_name}: {e}", exc_info=True)
-                    raise
+                tokenizer = MarianTokenizer.from_pretrained(model_name)
+                model = MarianMTModel.from_pretrained(model_name)
             elif model_name.startswith("facebook/nllb-"):
-                try:
-                    tokenizer = AutoTokenizer.from_pretrained(model_name)
-                    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-                except Exception as e:
-                    logger.error(f"Failed to load NLLB model {model_name}: {e}", exc_info=True)
-                    raise
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+                model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
             else:
                 raise ValueError(f"Unsupported model type: {model_name}")
 
-            # 强制使用CPU
-            device = "cpu"
-            model = model.to(device)
-            logger.info(f"Translation model {model_name} loaded successfully on CPU.")
-
+            # 直接加载到GPU
+            model = model.to("cuda")
+            
             self.translation_models[model_key] = model
             self.translation_tokenizers[model_key] = tokenizer
-            return tokenizer, model
+            
+            logger.info(f"Translation model {model_name} loaded successfully on GPU")
 
         return self.translation_tokenizers[model_key], self.translation_models[model_key]
 
@@ -547,7 +528,7 @@ class SpeechProcessor:
 
                 if self.selected_translation_model.startswith("Helsinki-NLP/opus-mt-"):
                     inputs = tokenizer(original_text, return_tensors="pt", padding=True, truncation=True, max_length=400)
-                    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+                    inputs = {k: v.to("cuda") for k, v in inputs.items()}
                     
                     with torch.no_grad():
                         outputs = model.generate(**inputs, max_new_tokens=400)
@@ -560,7 +541,7 @@ class SpeechProcessor:
                     
                     tokenizer.src_lang = src_lang_code
                     inputs = tokenizer(original_text, return_tensors="pt", padding=True, truncation=True, max_length=400)
-                    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+                    inputs = {k: v.to("cuda") for k, v in inputs.items()}
                     
                     with torch.no_grad():
                         outputs = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(tgt_lang_code), max_new_tokens=400)
@@ -697,7 +678,7 @@ def main():
     parser.add_argument('--stt_model', type=str, default='small',
                        choices=['tiny', 'base', 'small', 'medium'],
                        help='Whisper ASR model size')
-    parser.add_argument('--device', type=str, default='cpu',  # 默认使用CPU
+    parser.add_argument('--device', type=str, default='cuda',
                        choices=['cpu', 'cuda', 'auto'],
                        help='Inference device for Whisper')
 
@@ -720,10 +701,6 @@ def main():
     logger.info(f"Contents of {KOKORO_MODEL_PATH}:")
     for item in os.listdir(KOKORO_MODEL_PATH):
         logger.info(f"  - {item}")
-
-    # 设置环境变量强制使用CPU
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-    logger.info("Forcing CPU mode to avoid CUDA/cuDNN issues")
 
     source_lang_code, target_lang_code = get_user_language_choice()
     selected_kokoro_voice = get_user_kokoro_voice_choice(target_lang_code)

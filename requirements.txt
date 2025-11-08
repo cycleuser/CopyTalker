@@ -19,7 +19,7 @@ jieba
 fugashi 
 jaconv
 mojimoji
-fugashi[unidic-lite]
+fugashi[unidic]
 unidic-lite
 unidic-mecab
 unidic-mecab-python
