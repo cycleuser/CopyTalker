@@ -1,0 +1,161 @@
+{
+  "en->zh": [
+    "Helsinki-NLP/opus-mt-en-zh"
+  ],
+  "de->en": [
+    "Helsinki-NLP/opus-mt-de-en"
+  ],
+  "es->en": [
+    "Helsinki-NLP/opus-mt-es-en"
+  ],
+  "ja->en": [
+    "Helsinki-NLP/opus-mt-ja-en"
+  ],
+  "zh->en": [
+    "Helsinki-NLP/opus-mt-zh-en"
+  ],
+  "ar->de": [
+    "Helsinki-NLP/opus-mt-ar-de"
+  ],
+  "ar->en": [
+    "Helsinki-NLP/opus-mt-ar-en"
+  ],
+  "ar->es": [
+    "Helsinki-NLP/opus-mt-ar-es"
+  ],
+  "ar->fr": [
+    "Helsinki-NLP/opus-mt-ar-fr"
+  ],
+  "ar->it": [
+    "Helsinki-NLP/opus-mt-ar-it"
+  ],
+  "ar->ru": [
+    "Helsinki-NLP/opus-mt-ar-ru"
+  ],
+  "de->ar": [
+    "Helsinki-NLP/opus-mt-de-ar"
+  ],
+  "de->de": [
+    "Helsinki-NLP/opus-mt-de-de"
+  ],
+  "de->es": [
+    "Helsinki-NLP/opus-mt-de-es"
+  ],
+  "de->fr": [
+    "Helsinki-NLP/opus-mt-de-fr"
+  ],
+  "de->it": [
+    "Helsinki-NLP/opus-mt-de-it"
+  ],
+  "en->ar": [
+    "Helsinki-NLP/opus-mt-en-ar"
+  ],
+  "en->de": [
+    "Helsinki-NLP/opus-mt-en-de"
+  ],
+  "en->es": [
+    "Helsinki-NLP/opus-mt-en-es"
+  ],
+  "en->fr": [
+    "Helsinki-NLP/opus-mt-en-fr"
+  ],
+  "en->it": [
+    "Helsinki-NLP/opus-mt-en-it"
+  ],
+  "en->ru": [
+    "Helsinki-NLP/opus-mt-en-ru"
+  ],
+  "en_el_es_fi->en_el_es_fi": [
+    "Helsinki-NLP/opus-mt-en_el_es_fi-en_el_es_fi"
+  ],
+  "es->ar": [
+    "Helsinki-NLP/opus-mt-es-ar"
+  ],
+  "es->de": [
+    "Helsinki-NLP/opus-mt-es-de"
+  ],
+  "es->es": [
+    "Helsinki-NLP/opus-mt-es-es"
+  ],
+  "es->fr": [
+    "Helsinki-NLP/opus-mt-es-fr"
+  ],
+  "es->it": [
+    "Helsinki-NLP/opus-mt-es-it"
+  ],
+  "es->ru": [
+    "Helsinki-NLP/opus-mt-es-ru"
+  ],
+  "fr->ar": [
+    "Helsinki-NLP/opus-mt-fr-ar"
+  ],
+  "fr->de": [
+    "Helsinki-NLP/opus-mt-fr-de"
+  ],
+  "fr->en": [
+    "Helsinki-NLP/opus-mt-fr-en"
+  ],
+  "fr->es": [
+    "Helsinki-NLP/opus-mt-fr-es"
+  ],
+  "fr->ru": [
+    "Helsinki-NLP/opus-mt-fr-ru"
+  ],
+  "it->ar": [
+    "Helsinki-NLP/opus-mt-it-ar"
+  ],
+  "it->de": [
+    "Helsinki-NLP/opus-mt-it-de"
+  ],
+  "it->en": [
+    "Helsinki-NLP/opus-mt-it-en"
+  ],
+  "it->es": [
+    "Helsinki-NLP/opus-mt-it-es"
+  ],
+  "it->fr": [
+    "Helsinki-NLP/opus-mt-it-fr"
+  ],
+  "ja->ar": [
+    "Helsinki-NLP/opus-mt-ja-ar"
+  ],
+  "ja->de": [
+    "Helsinki-NLP/opus-mt-ja-de"
+  ],
+  "ja->es": [
+    "Helsinki-NLP/opus-mt-ja-es"
+  ],
+  "ja->fr": [
+    "Helsinki-NLP/opus-mt-ja-fr"
+  ],
+  "ja->it": [
+    "Helsinki-NLP/opus-mt-ja-it"
+  ],
+  "ja->pt": [
+    "Helsinki-NLP/opus-mt-ja-pt"
+  ],
+  "ja->ru": [
+    "Helsinki-NLP/opus-mt-ja-ru"
+  ],
+  "ko->de": [
+    "Helsinki-NLP/opus-mt-ko-de"
+  ],
+  "ko->en": [
+    "Helsinki-NLP/opus-mt-ko-en"
+  ],
+  "ko->es": [
+    "Helsinki-NLP/opus-mt-ko-es"
+  ],
+  "ko->fr": [
+    "Helsinki-NLP/opus-mt-ko-fr"
+  ],
+  "ko->ru": [
+    "Helsinki-NLP/opus-mt-ko-ru"
+  ],
+  "多语言->多语言": [
+    "facebook/nllb-200-distilled-600M",
+    "facebook/nllb-200-distilled-1.3B",
+    "facebook/nllb-200-1.3B",
+    "facebook/nllb-200-3.3B"
+  ]
+}
