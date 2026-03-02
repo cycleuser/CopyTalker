@@ -1,0 +1,14 @@
+include LICENSE
+include README.md
+include README_CN.md
+include pyproject.toml
+
+recursive-include src/copytalker *.py *.typed
+recursive-include images *.png
+
+exclude .gitignore
+prune tests
+prune .venv
+prune build
+prune dist
+prune *.egg-info

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "copytalker"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Cross-modal data conversion driven asynchronous multi-voice translation system"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "GPL-3.0"}
+license = "GPL-3.0-only"
 authors = [
     {name = "CopyTalker Team", email = "copytalker@example.com"}
 ]
@@ -34,7 +34,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Natural Language :: English",
     "Natural Language :: Chinese (Simplified)",
     "Natural Language :: Japanese",
@@ -132,6 +131,9 @@ copytalker-gui = "copytalker.gui.main_window:main"
 package-dir = {"" = "src"}
 packages = ["copytalker", "copytalker.core", "copytalker.audio", "copytalker.speech", "copytalker.translation", "copytalker.tts", "copytalker.gui", "copytalker.cli", "copytalker.utils"]
 include-package-data = true
+
+[tool.setuptools.dynamic]
+version = {attr = "copytalker.__version__"}
 
 [tool.setuptools.package-data]
 copytalker = [
