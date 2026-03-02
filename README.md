@@ -54,7 +54,7 @@ pip install copytalker[dev]
 ### From Source
 
 ```bash
-git clone https://github.com/EasyCam/CopyTalker.git
+git clone https://github.com/cycleuser/CopyTalker.git
 cd CopyTalker
 pip install -e .[full]
 ```
@@ -295,7 +295,7 @@ CopyTalker follows a modular pipeline architecture:
 ### Setup Development Environment
 
 ```bash
-git clone https://github.com/EasyCam/CopyTalker.git
+git clone https://github.com/cycleuser/CopyTalker.git
 cd CopyTalker
 pip install -e .[dev]
 ```

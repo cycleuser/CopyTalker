@@ -54,7 +54,7 @@ pip install copytalker[dev]
 ### 从源码安装
 
 ```bash
-git clone https://github.com/EasyCam/CopyTalker.git
+git clone https://github.com/cycleuser/CopyTalker.git
 cd CopyTalker
 pip install -e .[full]
 ```
@@ -295,7 +295,7 @@ CopyTalker 采用模块化流水线架构：
 ### 设置开发环境
 
 ```bash
-git clone https://github.com/EasyCam/CopyTalker.git
+git clone https://github.com/cycleuser/CopyTalker.git
 cd CopyTalker
 pip install -e .[dev]
 ```

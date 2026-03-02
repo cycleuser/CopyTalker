@@ -4,7 +4,7 @@ CopyTalker: Cross-modal Data Conversion Driven Asynchronous Multi-Voice Translat
 A real-time speech-to-speech translation system supporting multiple languages and TTS engines.
 """
 
-__version__ = "1.0.0"
+__version__ = "0.0.1"
 __author__ = "CopyTalker Team"
 __license__ = "GPL-3.0"
 

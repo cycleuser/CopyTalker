@@ -118,11 +118,11 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/EasyCam/CopyTalker"
-Repository = "https://github.com/EasyCam/CopyTalker.git"
-Documentation = "https://github.com/EasyCam/CopyTalker#readme"
-Issues = "https://github.com/EasyCam/CopyTalker/issues"
-Changelog = "https://github.com/EasyCam/CopyTalker/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/cycleuser/CopyTalker"
+Repository = "https://github.com/cycleuser/CopyTalker.git"
+Documentation = "https://github.com/cycleuser/CopyTalker#readme"
+Issues = "https://github.com/cycleuser/CopyTalker/issues"
+Changelog = "https://github.com/cycleuser/CopyTalker/blob/main/CHANGELOG.md"
 
 [project.scripts]
 copytalker = "copytalker.cli.main:main"

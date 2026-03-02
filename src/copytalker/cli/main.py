@@ -40,7 +40,7 @@ Examples:
   copytalker download-models --whisper small
   copytalker --gui
 
-For more information, visit: https://github.com/EasyCam/CopyTalker
+For more information, visit: https://github.com/cycleuser/CopyTalker
         """,
     )
     

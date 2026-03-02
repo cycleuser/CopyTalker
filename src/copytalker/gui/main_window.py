@@ -332,7 +332,7 @@ class CopyTalkerGUI:
             "About CopyTalker",
             f"CopyTalker v{__version__}\n\n"
             "Real-time multilingual speech-to-speech translation\n\n"
-            "https://github.com/EasyCam/CopyTalker"
+            "https://github.com/cycleuser/CopyTalker"
         )
     
     def _update_voice_list(self) -> None:
