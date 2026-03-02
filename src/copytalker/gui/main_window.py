@@ -269,7 +269,15 @@ class CopyTalkerGUI:
             width=20,
             state=tk.DISABLED,
         )
-        self.stop_button.pack(side=tk.LEFT)
+        self.stop_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.download_button = ttk.Button(
+            button_frame,
+            text="Download Models",
+            command=self._on_download_models,
+            width=20,
+        )
+        self.download_button.pack(side=tk.LEFT)
         
         # Transcription display
         trans_frame = ttk.LabelFrame(main_frame, text="Transcription (What you said)", padding="10")
@@ -449,6 +457,87 @@ class CopyTalkerGUI:
             self._event_queue.put(("error", f"Calibration failed: {e}"))
             self._event_queue.put(("calibration_done", 0.0))
     
+    def _on_download_models(self) -> None:
+        """Download all required models."""
+        self.download_button.config(state=tk.DISABLED)
+        self.status_var.set("Downloading models... This may take a while")
+        
+        thread = threading.Thread(
+            target=self._download_models_thread,
+            daemon=True,
+        )
+        thread.start()
+    
+    def _download_models_thread(self) -> None:
+        """Download models in background thread."""
+        try:
+            from copytalker.core.constants import SUPPORTED_LANGUAGES, DEFAULT_TRANSLATION_MODELS
+            
+            total_models = []
+            
+            # Collect Helsinki models for all defined pairs
+            for key, models in DEFAULT_TRANSLATION_MODELS.items():
+                if key == "multilingual":
+                    continue
+                for m in models:
+                    if m.startswith("Helsinki-NLP/") and m not in total_models:
+                        total_models.append(m)
+            
+            # Add NLLB default model
+            nllb_model = "facebook/nllb-200-distilled-600M"
+            if nllb_model not in total_models:
+                total_models.append(nllb_model)
+            
+            downloaded = 0
+            failed = []
+            
+            for i, model_name in enumerate(total_models):
+                self._event_queue.put(("status", f"Downloading ({i+1}/{len(total_models)}): {model_name}"))
+                try:
+                    from transformers import AutoTokenizer, AutoModel
+                    
+                    if model_name.startswith("Helsinki-NLP/"):
+                        from transformers import MarianTokenizer, MarianMTModel
+                        MarianTokenizer.from_pretrained(model_name)
+                        MarianMTModel.from_pretrained(model_name)
+                    elif "nllb" in model_name:
+                        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+                        AutoTokenizer.from_pretrained(model_name)
+                        AutoModelForSeq2SeqLM.from_pretrained(model_name)
+                    else:
+                        AutoTokenizer.from_pretrained(model_name)
+                        AutoModel.from_pretrained(model_name)
+                    
+                    downloaded += 1
+                    logger.info(f"Downloaded: {model_name}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to download {model_name}: {e}")
+                    failed.append(model_name)
+            
+            # Also download Whisper model
+            self._event_queue.put(("status", f"Downloading Whisper (small)..."))
+            try:
+                from faster_whisper import WhisperModel
+                WhisperModel("small", device="cpu", compute_type="float32")
+                downloaded += 1
+            except Exception as e:
+                logger.error(f"Failed to download Whisper: {e}")
+                failed.append("whisper-small")
+            
+            if failed:
+                msg = f"Downloaded {downloaded} models. Failed: {', '.join(failed)}"
+            else:
+                msg = f"All {downloaded} models downloaded successfully!"
+            
+            self._event_queue.put(("status", msg))
+            self._event_queue.put(("download_done", None))
+            
+        except Exception as e:
+            logger.error(f"Download error: {e}")
+            self._event_queue.put(("error", f"Download error: {e}"))
+            self._event_queue.put(("download_done", None))
+    
     def _get_source_lang(self) -> str:
         """Get selected source language code."""
         selection = self.source_combo.get()
@@ -603,6 +692,8 @@ class CopyTalkerGUI:
                         self.noise_level_var.set(f"Level: {data:.4f}")
                     else:
                         self.noise_level_var.set("Failed")
+                elif event_type == "download_done":
+                    self.download_button.config(state=tk.NORMAL)
                     
         except queue.Empty:
             pass

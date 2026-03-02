@@ -118,16 +118,37 @@ class WhisperRecognizer:
                     duration=duration,
                 )
             
-            # Filter by minimum word count
-            word_count = len(text.split()) if text else 0
-            if word_count < self.config.min_words:
-                logger.debug(f"Filtered (too short): '{text}' ({word_count} words < {self.config.min_words})")
-                return TranscriptionResult(
-                    text="",
-                    language=normalized_lang,
-                    confidence=confidence,
-                    duration=duration,
-                )
+            # Filter by minimum word/character count
+            # CJK languages (ja, zh, ko) don't use spaces between words,
+            # so we count characters instead of words for those languages.
+            CJK_LANGUAGES = {"ja", "zh", "ko", "yue"}
+            if normalized_lang in CJK_LANGUAGES:
+                # For CJK: count non-whitespace, non-punctuation characters
+                stripped = text.strip() if text else ""
+                # Remove common punctuation and whitespace
+                for ch in " \t\n\r.,!?;:。、！？；：「」『』（）()[]【】…—ー～〜·・":
+                    stripped = stripped.replace(ch, "")
+                char_count = len(stripped)
+                min_chars = max(2, self.config.min_words)
+                if char_count < min_chars:
+                    logger.debug(f"Filtered (too short): '{text}' ({char_count} chars < {min_chars})")
+                    return TranscriptionResult(
+                        text="",
+                        language=normalized_lang,
+                        confidence=confidence,
+                        duration=duration,
+                    )
+            else:
+                # For space-delimited languages: count words
+                word_count = len(text.split()) if text else 0
+                if word_count < self.config.min_words:
+                    logger.debug(f"Filtered (too short): '{text}' ({word_count} words < {self.config.min_words})")
+                    return TranscriptionResult(
+                        text="",
+                        language=normalized_lang,
+                        confidence=confidence,
+                        duration=duration,
+                    )
             
             result = TranscriptionResult(
                 text=text,

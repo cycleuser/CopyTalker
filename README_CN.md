@@ -110,6 +110,56 @@ copytalker --gui
 copytalker-gui
 ```
 
+#### 界面截图
+
+**主界面**
+
+![主界面](images/0-interface.png)
+
+主窗口提供所有设置选项、实时转录和翻译显示区域，以及开始翻译、停止和下载模型等控制按钮。
+
+**源语言选择**
+
+![源语言选择](images/1-select-source.png)
+
+选择源语言，或选择自动检测让 Whisper 自动识别说话人的语言。
+
+**目标语言选择**
+
+![目标语言选择](images/2-select-target.png)
+
+选择翻译输出的目标语言。
+
+**语音选择**
+
+![语音选择](images/3-select-vioce.png)
+
+为目标语言选择 TTS 语音。语音列表会根据所选目标语言和 TTS 引擎动态变化。
+
+**TTS 引擎选择**
+
+![TTS 引擎选择](images/4-select-tts.png)
+
+可选择 Kokoro（高质量神经网络）、Edge TTS（云端）、pyttsx3（离线）或 auto（自动选择最佳引擎）。
+
+**翻译模型选择**
+
+![翻译模型选择](images/5-select-translator.png)
+
+选择 Helsinki-NLP（特定语言对模型）或 NLLB（多语言模型，支持所有语言对，包括日中互译）。
+
+**翻译设备选择**
+
+![翻译设备选择](images/6-select-trans-device.png)
+
+将翻译模型分配到 CPU 或 CUDA GPU 上运行，合理分配计算资源。
+
+**TTS 设备选择**
+
+![TTS 设备选择](images/7-select-tts-device.png)
+
+将 TTS 引擎独立分配到 CPU 或 CUDA GPU，避免与翻译模型争抢 GPU 资源。
+
 ### Python API
 
 ```python

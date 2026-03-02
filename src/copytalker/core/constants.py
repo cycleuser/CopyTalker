@@ -153,10 +153,16 @@ DEFAULT_TRANSLATION_MODELS: Dict[str, List[str]] = {
     "en->es": ["Helsinki-NLP/opus-mt-en-es"],
     "es->en": ["Helsinki-NLP/opus-mt-es-en"],
     "en->ru": ["Helsinki-NLP/opus-mt-en-ru"],
+    "ru->en": ["Helsinki-NLP/opus-mt-ru-en"],
     "en->ar": ["Helsinki-NLP/opus-mt-en-ar"],
-    "ja->en": ["Helsinki-NLP/opus-mt-ja-en"],
-    "ko->en": ["Helsinki-NLP/opus-mt-ko-en"],
     "ar->en": ["Helsinki-NLP/opus-mt-ar-en"],
+    "en->ja": ["Helsinki-NLP/opus-mt-en-jap"],
+    "ja->en": ["Helsinki-NLP/opus-mt-ja-en"],
+    "en->ko": ["Helsinki-NLP/opus-mt-en-ko" ],
+    "ko->en": ["Helsinki-NLP/opus-mt-ko-en"],
+    # Pairs without Helsinki models use NLLB automatically:
+    # ja->zh, zh->ja, ko->zh, zh->ko, ja->ko, ko->ja,
+    # fr->de, de->fr, es->fr, fr->es, etc.
     # Multilingual fallback
     "multilingual": [
         "facebook/nllb-200-distilled-600M",

@@ -40,13 +40,28 @@ class NLLBTranslator:
             model_name: Specific NLLB model to use (defaults to distilled-600M)
         """
         self.config = config or TranslationConfig()
-        self._model_name = model_name or self.config.model_name or self.DEFAULT_MODEL
+        
+        # Only use config.model_name if it's an actual NLLB model path,
+        # not a backend selector like "helsinki" or "nllb"
+        self._model_name = self._resolve_model_name(model_name, self.config.model_name)
         
         self._model = None
         self._tokenizer = None
         self._device = self.config.device
         self._loaded = False
         
+    def _resolve_model_name(self, explicit: Optional[str], from_config: Optional[str]) -> str:
+        """Resolve actual HuggingFace model name, ignoring backend selectors."""
+        BACKEND_SELECTORS = {"helsinki", "helsinki-nlp", "nllb", "auto", ""}
+        
+        for candidate in (explicit, from_config):
+            if candidate and candidate.lower().strip() not in BACKEND_SELECTORS:
+                # Must look like a real model path (contains '/')
+                if "/" in candidate:
+                    return candidate
+        
+        return self.DEFAULT_MODEL
+    
     def _ensure_model(self) -> None:
         """Lazy-load the NLLB model."""
         if self._loaded:
