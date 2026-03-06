@@ -29,6 +29,18 @@ def __getattr__(name):
     elif name == "TranslationPipeline":
         from copytalker.core.pipeline import TranslationPipeline
         return TranslationPipeline
+    elif name == "ToolResult":
+        from copytalker.api import ToolResult
+        return ToolResult
+    elif name == "translate":
+        from copytalker.api import translate
+        return translate
+    elif name == "list_voices":
+        from copytalker.api import list_voices
+        return list_voices
+    elif name == "list_languages":
+        from copytalker.api import list_languages
+        return list_languages
     raise AttributeError(f"module 'copytalker' has no attribute '{name}'")
 
 
@@ -40,4 +52,8 @@ __all__ = [
     "TranslationConfig",
     "TTSConfig",
     "TranslationPipeline",
+    "ToolResult",
+    "translate",
+    "list_voices",
+    "list_languages",
 ]

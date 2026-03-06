@@ -339,6 +339,29 @@ mypy src/copytalker
 
 详细 Python 包依赖请参见 [pyproject.toml](pyproject.toml)。
 
+## Agent 集成（OpenAI Function Calling）
+
+CopyTalker 提供 OpenAI 兼容的工具定义，可供 LLM Agent 调用：
+
+```python
+from copytalker.tools import TOOLS, dispatch
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=messages,
+    tools=TOOLS,
+)
+
+result = dispatch(
+    tool_call.function.name,
+    tool_call.function.arguments,
+)
+```
+
+## CLI 帮助
+
+![CLI 帮助](images/copytalker_help.png)
+
 ## 许可证
 
 本项目采用 GNU General Public License v3.0 许可证 - 详情请见 [LICENSE](LICENSE) 文件。

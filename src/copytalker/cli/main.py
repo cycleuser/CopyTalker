@@ -45,7 +45,7 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
     )
     
     parser.add_argument(
-        "--version",
+        "-V", "--version",
         action="version",
         version=f"CopyTalker {__version__}",
     )
@@ -54,6 +54,25 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
         "--debug",
         action="store_true",
         help="Enable debug logging",
+    )
+    
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Verbose output",
+    )
+    
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output results as JSON",
+    )
+    
+    parser.add_argument(
+        "-q", "--quiet",
+        action="store_true",
+        help="Suppress non-essential output",
     )
     
     parser.add_argument(

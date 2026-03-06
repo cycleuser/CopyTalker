@@ -1,0 +1,33 @@
+usage: copytalker [-h] [-V] [--debug] [--verbose] [--json] [-q] [--gui]
+                  {translate,list-voices,list-languages,download-models,cache}
+                  ...
+
+CopyTalker - Real-time multilingual speech-to-speech translation
+
+positional arguments:
+  {translate,list-voices,list-languages,download-models,cache}
+                        Available commands
+    translate           Start real-time translation
+    list-voices         List available TTS voices
+    list-languages      List supported languages
+    download-models     Pre-download models
+    cache               Manage model cache
+
+options:
+  -h, --help            show this help message and exit
+  -V, --version         show program's version number and exit
+  --debug               Enable debug logging
+  --verbose             Verbose output
+  --json                Output results as JSON
+  -q, --quiet           Suppress non-essential output
+  --gui                 Launch GUI interface
+
+Examples:
+  copytalker translate --target zh
+  copytalker translate --source en --target zh --voice af_heart
+  copytalker list-voices --language zh
+  copytalker download-models --whisper small
+  copytalker --gui
+
+For more information, visit: https://github.com/cycleuser/CopyTalker
+        
