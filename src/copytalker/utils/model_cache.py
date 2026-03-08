@@ -22,6 +22,12 @@ class ModelCache:
     Uses HuggingFace Hub for model downloads with progress tracking.
     """
     
+    # HuggingFace model IDs for TTS engines
+    INDEXTTS_V2_REPO = "IndexTeam/IndexTTS-2"
+    INDEXTTS_V1_REPO = "IndexTeam/IndexTTS"
+    FISH_SPEECH_REPO = "fishaudio/fish-speech-1.5"
+    KOKORO_REPO = "hexgrad/Kokoro-82M"
+    
     def __init__(self, cache_dir: Optional[Path] = None):
         """
         Initialize model cache.
@@ -47,9 +53,29 @@ class ModelCache:
         """TTS model cache directory."""
         return self.cache_dir / "tts"
     
+    @property
+    def indextts_dir(self) -> Path:
+        """IndexTTS model directory."""
+        return self.cache_dir / "indextts"
+    
+    @property
+    def fish_speech_dir(self) -> Path:
+        """Fish-Speech model directory."""
+        return self.cache_dir / "fish-speech"
+    
+    @property
+    def voice_clones_dir(self) -> Path:
+        """Directory for recorded/uploaded voice clone references."""
+        d = self.cache_dir / "voice_clones"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    
     def ensure_dirs(self) -> None:
         """Create all cache subdirectories."""
-        for d in [self.whisper_dir, self.translation_dir, self.tts_dir]:
+        for d in [
+            self.whisper_dir, self.translation_dir, self.tts_dir,
+            self.indextts_dir, self.fish_speech_dir, self.voice_clones_dir,
+        ]:
             d.mkdir(parents=True, exist_ok=True)
     
     def download_whisper_model(
@@ -139,7 +165,7 @@ class ModelCache:
             from huggingface_hub import snapshot_download
             
             model_path = snapshot_download(
-                repo_id="hexgrad/Kokoro-82M",
+                repo_id=self.KOKORO_REPO,
                 cache_dir=str(kokoro_dir),
             )
             
@@ -149,6 +175,95 @@ class ModelCache:
         except Exception as e:
             logger.error(f"Failed to download Kokoro model: {e}")
             raise ModelDownloadError(f"Kokoro download failed: {e}") from e
+    
+    def download_indextts_model(
+        self,
+        version: str = "v2",
+        progress_callback: Optional[Callable[[str, float], None]] = None,
+    ) -> Path:
+        """
+        Download IndexTTS model from HuggingFace.
+        
+        Args:
+            version: Model version ('v1' or 'v2')
+            progress_callback: Optional callback(status_msg, progress_0_to_1)
+            
+        Returns:
+            Path to model directory
+        """
+        repo_id = self.INDEXTTS_V2_REPO if version == "v2" else self.INDEXTTS_V1_REPO
+        target_dir = self.indextts_dir
+        
+        logger.info(f"Downloading IndexTTS {version} from {repo_id}...")
+        if progress_callback:
+            progress_callback(f"Downloading IndexTTS {version}...", 0.0)
+        
+        try:
+            from huggingface_hub import snapshot_download
+            
+            snapshot_download(
+                repo_id=repo_id,
+                local_dir=str(target_dir),
+                local_dir_use_symlinks=False,
+            )
+            
+            logger.info(f"IndexTTS {version} model downloaded to {target_dir}")
+            if progress_callback:
+                progress_callback(f"IndexTTS {version} ready!", 1.0)
+            
+            return target_dir
+            
+        except Exception as e:
+            logger.error(f"Failed to download IndexTTS: {e}")
+            raise ModelDownloadError(f"IndexTTS download failed: {e}") from e
+    
+    def download_fish_speech_model(
+        self,
+        progress_callback: Optional[Callable[[str, float], None]] = None,
+    ) -> Path:
+        """
+        Download Fish-Speech model from HuggingFace.
+        
+        Args:
+            progress_callback: Optional callback(status_msg, progress_0_to_1)
+            
+        Returns:
+            Path to model directory
+        """
+        target_dir = self.fish_speech_dir
+        
+        logger.info(f"Downloading Fish-Speech from {self.FISH_SPEECH_REPO}...")
+        if progress_callback:
+            progress_callback("Downloading Fish-Speech...", 0.0)
+        
+        try:
+            from huggingface_hub import snapshot_download
+            
+            snapshot_download(
+                repo_id=self.FISH_SPEECH_REPO,
+                local_dir=str(target_dir),
+                local_dir_use_symlinks=False,
+            )
+            
+            logger.info(f"Fish-Speech model downloaded to {target_dir}")
+            if progress_callback:
+                progress_callback("Fish-Speech ready!", 1.0)
+            
+            return target_dir
+            
+        except Exception as e:
+            logger.error(f"Failed to download Fish-Speech: {e}")
+            raise ModelDownloadError(f"Fish-Speech download failed: {e}") from e
+    
+    def is_indextts_downloaded(self) -> bool:
+        """Check if IndexTTS model is already downloaded."""
+        d = self.indextts_dir
+        return d.exists() and (d / "config.yaml").exists()
+    
+    def is_fish_speech_downloaded(self) -> bool:
+        """Check if Fish-Speech model is already downloaded."""
+        d = self.fish_speech_dir
+        return d.exists() and any(d.iterdir())
     
     def get_cached_models(self) -> Dict[str, List[str]]:
         """
@@ -161,6 +276,9 @@ class ModelCache:
             "whisper": [],
             "translation": [],
             "tts": [],
+            "indextts": [],
+            "fish-speech": [],
+            "voice_clones": [],
         }
         
         # Check whisper models
@@ -180,6 +298,19 @@ class ModelCache:
             for item in self.tts_dir.iterdir():
                 if item.is_dir():
                     cached["tts"].append(item.name)
+        
+        # Check IndexTTS
+        if self.is_indextts_downloaded():
+            cached["indextts"].append("IndexTTS-2")
+        
+        # Check Fish-Speech
+        if self.is_fish_speech_downloaded():
+            cached["fish-speech"].append("fish-speech-1.5")
+        
+        # Check voice clones
+        if self.voice_clones_dir.exists():
+            for wav_file in self.voice_clones_dir.glob("*.wav"):
+                cached["voice_clones"].append(wav_file.stem)
         
         return cached
     
@@ -201,16 +332,24 @@ class ModelCache:
         Clear cached models.
         
         Args:
-            model_type: Type to clear ('whisper', 'translation', 'tts', or None for all)
+            model_type: Type to clear ('whisper', 'translation', 'tts',
+                       'indextts', 'fish-speech', or None for all)
         """
+        type_to_dirs = {
+            "whisper": [self.whisper_dir],
+            "translation": [self.translation_dir],
+            "tts": [self.tts_dir],
+            "indextts": [self.indextts_dir],
+            "fish-speech": [self.fish_speech_dir],
+        }
+        
         if model_type is None:
-            dirs = [self.whisper_dir, self.translation_dir, self.tts_dir]
-        elif model_type == "whisper":
-            dirs = [self.whisper_dir]
-        elif model_type == "translation":
-            dirs = [self.translation_dir]
-        elif model_type == "tts":
-            dirs = [self.tts_dir]
+            dirs = [
+                self.whisper_dir, self.translation_dir, self.tts_dir,
+                self.indextts_dir, self.fish_speech_dir,
+            ]
+        elif model_type in type_to_dirs:
+            dirs = type_to_dirs[model_type]
         else:
             raise ValueError(f"Unknown model type: {model_type}")
         

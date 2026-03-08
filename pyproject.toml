@@ -26,6 +26,10 @@ keywords = [
     "whisper",
     "kokoro-tts",
     "nllb",
+    "voice-cloning",
+    "indextts",
+    "fish-speech",
+    "emotion-tts",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -78,6 +82,23 @@ full = [
     "librosa>=0.9.1",
 ]
 
+# IndexTTS voice cloning engine
+indextts = [
+    "pynini>=2.1.5",
+    "soundfile>=0.12.0",
+]
+
+# Fish-Speech TTS engine (local inference)
+fish-speech = [
+    "soundfile>=0.12.0",
+]
+
+# Fish-Speech cloud API
+fish-speech-api = [
+    "fish-audio-sdk>=0.1.0",
+    "httpx>=0.24.0",
+]
+
 # CJK language support (Chinese, Japanese, Korean)
 cjk = [
     "cn2an>=0.5.17",
@@ -113,7 +134,7 @@ docs = [
 
 # All optional dependencies
 all = [
-    "copytalker[full,cjk,dev,docs]",
+    "copytalker[full,indextts,fish-speech,fish-speech-api,cjk,dev,docs]",
 ]
 
 [project.urls]

@@ -29,6 +29,8 @@ class TTSEngineType(Enum):
     KOKORO = "kokoro"
     EDGE_TTS = "edge-tts"
     PYTTSX3 = "pyttsx3"
+    INDEXTTS = "indextts"
+    FISH_SPEECH = "fish-speech"
     AUTO = "auto"
 
 

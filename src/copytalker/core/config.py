@@ -143,9 +143,26 @@ class TTSConfig:
     device: str = field(default_factory=get_device)
     kokoro_model_path: Optional[str] = None  # Custom path for Kokoro model
     
+    # IndexTTS settings
+    indextts_model_path: Optional[str] = None  # Custom path for IndexTTS model
+    indextts_reference_audio: Optional[str] = None  # Default reference audio for voice cloning
+    indextts_emotion: Optional[str] = None  # Emotion name (happy, sad, angry, etc.)
+    indextts_emotion_audio: Optional[str] = None  # Path to emotion reference audio
+    indextts_target_duration: Optional[float] = None  # Target duration in seconds
+    
+    # Fish-Speech settings
+    fish_speech_model_path: Optional[str] = None  # Custom path for Fish-Speech model
+    fish_speech_api_key: Optional[str] = None  # Fish Audio cloud API key
+    fish_speech_api_url: str = "https://api.fish.audio"  # Fish Audio API base URL
+    fish_speech_voice_id: Optional[str] = None  # Registered voice/speaker ID
+    fish_speech_reference_audio: Optional[str] = None  # Default reference audio
+    fish_speech_emotion: Optional[str] = None  # Emotion tag (happy, whisper, etc.)
+    
     def validate(self) -> None:
         """Validate configuration values."""
-        valid_engines = ["kokoro", "edge-tts", "pyttsx3", "auto"]
+        valid_engines = [
+            "kokoro", "edge-tts", "pyttsx3", "indextts", "fish-speech", "auto",
+        ]
         if self.engine not in valid_engines:
             raise ValueError(f"Invalid TTS engine: {self.engine}. Must be one of {valid_engines}")
         if self.speed < 0.5 or self.speed > 2.0:

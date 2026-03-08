@@ -182,6 +182,56 @@ DEFAULT_AUDIO_BUFFER_SIZE = 10
 # Kokoro TTS sample rate
 KOKORO_SAMPLE_RATE = 22050
 
+# IndexTTS sample rate (BigVGAN2 vocoder)
+INDEXTTS_SAMPLE_RATE = 24000
+
+# Fish-Speech sample rate
+FISH_SPEECH_SAMPLE_RATE = 44100
+
+# IndexTTS supported languages
+INDEXTTS_LANG_MAP: Dict[str, str] = {
+    "en": "en",
+    "zh": "zh",
+    "ja": "ja",
+}
+
+# Fish-Speech supported languages (13 languages)
+FISH_SPEECH_LANG_MAP: Dict[str, str] = {
+    "en": "en",
+    "zh": "zh",
+    "ja": "ja",
+    "ko": "ko",
+    "fr": "fr",
+    "de": "de",
+    "es": "es",
+    "ru": "ru",
+    "ar": "ar",
+    "it": "it",
+    "pt": "pt",
+    "hi": "hi",
+}
+
+# IndexTTS emotion names (v2)
+INDEXTTS_EMOTIONS: List[str] = [
+    "happy", "angry", "sad", "fearful",
+    "surprised", "disgusted", "contemptuous", "neutral",
+]
+
+# Fish-Speech emotion/expression tags (50+)
+FISH_SPEECH_EMOTION_TAGS: List[str] = [
+    "happy", "sad", "angry", "surprised", "excited", "whisper",
+    "shouting", "crying", "laughing", "fearful", "disgusted",
+    "calm", "serious", "gentle", "cheerful", "melancholic",
+    "dramatic", "sarcastic", "nervous", "confident", "bored",
+    "anxious", "proud", "shy", "romantic", "nostalgic",
+    "hopeful", "desperate", "relieved", "confused", "amused",
+    "contemptuous", "sympathetic", "determined", "playful",
+    "mysterious", "soothing", "energetic", "solemn", "tender",
+    "irritated", "enthusiastic", "indifferent", "passionate",
+    "mocking", "pleading", "thoughtful", "warm", "cold",
+    "authoritative",
+]
+
 # Model sizes (for user information)
 MODEL_SIZES: Dict[str, str] = {
     "whisper-tiny": "~75 MB",
@@ -192,6 +242,8 @@ MODEL_SIZES: Dict[str, str] = {
     "nllb-200-distilled-600M": "~1.2 GB",
     "nllb-200-distilled-1.3B": "~2.6 GB",
     "kokoro-82M": "~330 MB",
+    "indextts-v2": "~4 GB",
+    "fish-speech-1.5": "~2 GB",
 }
 
 # Auto-detect language code
@@ -227,6 +279,16 @@ def get_available_voices(lang: str, engine: str = "kokoro") -> List[str]:
         return KOKORO_VOICE_MAP.get(lang, KOKORO_VOICE_MAP["en"])
     elif engine == "edge-tts":
         return EDGE_TTS_VOICE_MAP.get(lang, EDGE_TTS_VOICE_MAP["en"])
+    elif engine == "indextts":
+        # IndexTTS uses reference audio files, no predefined voice list
+        if lang in INDEXTTS_LANG_MAP:
+            return ["(reference audio file)"]
+        return []
+    elif engine == "fish-speech":
+        # Fish-Speech uses reference audio or API voice IDs
+        if lang in FISH_SPEECH_LANG_MAP:
+            return ["(reference audio / voice ID)"]
+        return []
     return []
 
 

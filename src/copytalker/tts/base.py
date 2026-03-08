@@ -88,7 +88,8 @@ def get_tts_engine(
     Get a TTS engine by name.
     
     Args:
-        engine_name: Engine name ('kokoro', 'edge-tts', 'pyttsx3', 'auto')
+        engine_name: Engine name ('kokoro', 'edge-tts', 'pyttsx3',
+                     'indextts', 'fish-speech', 'auto')
         config: TTS configuration
         
     Returns:
@@ -98,16 +99,20 @@ def get_tts_engine(
     from copytalker.tts.kokoro import KokoroTTS
     from copytalker.tts.edge import EdgeTTS
     from copytalker.tts.pyttsx3_engine import Pyttsx3TTS
+    from copytalker.tts.indextts import IndexTTS
+    from copytalker.tts.fish_speech import FishSpeechTTS
     
     engines = {
         "kokoro": KokoroTTS,
         "edge-tts": EdgeTTS,
         "pyttsx3": Pyttsx3TTS,
+        "indextts": IndexTTS,
+        "fish-speech": FishSpeechTTS,
     }
     
     if engine_name == "auto":
         # Try engines in order of preference
-        for name in ["kokoro", "edge-tts", "pyttsx3"]:
+        for name in ["kokoro", "indextts", "fish-speech", "edge-tts", "pyttsx3"]:
             try:
                 engine = engines[name](config)
                 if engine.is_available:

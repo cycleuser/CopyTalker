@@ -74,14 +74,17 @@ class TestListLanguagesAPI:
 class TestToolsSchema:
     def test_tools_count(self):
         from copytalker.tools import TOOLS
-        assert len(TOOLS) == 3
+        assert len(TOOLS) == 6
 
     def test_tool_names(self):
         from copytalker.tools import TOOLS
         names = [t["function"]["name"] for t in TOOLS]
         assert "copytalker_translate" in names
+        assert "copytalker_tts_synthesize" in names
         assert "copytalker_list_voices" in names
         assert "copytalker_list_languages" in names
+        assert "copytalker_list_emotions" in names
+        assert "copytalker_clone_voice" in names
 
     def test_translate_requires_target(self):
         from copytalker.tools import TOOLS

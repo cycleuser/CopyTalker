@@ -108,7 +108,7 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
     translate_parser.add_argument(
         "--tts-engine",
         type=str,
-        choices=["kokoro", "edge-tts", "pyttsx3", "auto"],
+        choices=["kokoro", "edge-tts", "pyttsx3", "indextts", "fish-speech", "auto"],
         default="auto",
         help="TTS engine to use",
     )
@@ -126,6 +126,16 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
         default="auto",
         help="Compute device",
     )
+    translate_parser.add_argument(
+        "--reference-audio",
+        type=str,
+        help="Reference audio file for voice cloning (IndexTTS/Fish-Speech)",
+    )
+    translate_parser.add_argument(
+        "--emotion",
+        type=str,
+        help="Emotion for TTS (IndexTTS: happy/sad/angry/etc, Fish-Speech: emotion tag)",
+    )
     
     # List voices command
     list_voices_parser = subparsers.add_parser(
@@ -140,7 +150,7 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
     list_voices_parser.add_argument(
         "--engine",
         type=str,
-        choices=["kokoro", "edge-tts"],
+        choices=["kokoro", "edge-tts", "indextts", "fish-speech"],
         default="kokoro",
         help="TTS engine",
     )
@@ -149,6 +159,121 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
     subparsers.add_parser(
         "list-languages",
         help="List supported languages",
+    )
+    
+    # List emotions command
+    list_emotions_parser = subparsers.add_parser(
+        "list-emotions",
+        help="List available emotion tags for TTS engines",
+    )
+    list_emotions_parser.add_argument(
+        "--engine",
+        type=str,
+        choices=["indextts", "fish-speech"],
+        default="fish-speech",
+        help="TTS engine to query emotions for",
+    )
+    
+    # TTS synthesize command
+    synth_parser = subparsers.add_parser(
+        "synthesize",
+        help="Synthesize text to speech audio file",
+    )
+    synth_parser.add_argument(
+        "text",
+        type=str,
+        help="Text to synthesize",
+    )
+    synth_parser.add_argument(
+        "-o", "--output",
+        type=str,
+        default="output.wav",
+        help="Output WAV file path",
+    )
+    synth_parser.add_argument(
+        "-l", "--language",
+        type=str,
+        default="en",
+        help="Target language code",
+    )
+    synth_parser.add_argument(
+        "--engine",
+        type=str,
+        choices=["kokoro", "edge-tts", "pyttsx3", "indextts", "fish-speech", "auto"],
+        default="auto",
+        help="TTS engine to use",
+    )
+    synth_parser.add_argument(
+        "-v", "--voice",
+        type=str,
+        help="Voice name or reference audio path",
+    )
+    synth_parser.add_argument(
+        "--speed",
+        type=float,
+        default=1.0,
+        help="Speech speed multiplier (0.5-2.0)",
+    )
+    synth_parser.add_argument(
+        "--reference-audio",
+        type=str,
+        help="Reference audio for voice cloning (IndexTTS/Fish-Speech)",
+    )
+    synth_parser.add_argument(
+        "--emotion",
+        type=str,
+        help="Emotion tag for synthesis",
+    )
+    synth_parser.add_argument(
+        "--emotion-audio",
+        type=str,
+        help="Emotion reference audio (IndexTTS v2)",
+    )
+    synth_parser.add_argument(
+        "--target-duration",
+        type=float,
+        help="Target audio duration in seconds (IndexTTS v2)",
+    )
+    
+    # Clone voice command
+    clone_parser = subparsers.add_parser(
+        "clone-voice",
+        help="Clone a voice from reference audio and synthesize text",
+    )
+    clone_parser.add_argument(
+        "text",
+        type=str,
+        help="Text to speak in the cloned voice",
+    )
+    clone_parser.add_argument(
+        "-r", "--reference-audio",
+        type=str,
+        required=True,
+        help="Path to reference audio file (5-30 seconds)",
+    )
+    clone_parser.add_argument(
+        "-o", "--output",
+        type=str,
+        default="cloned_output.wav",
+        help="Output WAV file path",
+    )
+    clone_parser.add_argument(
+        "--engine",
+        type=str,
+        choices=["indextts", "fish-speech"],
+        default="indextts",
+        help="Voice cloning engine",
+    )
+    clone_parser.add_argument(
+        "-l", "--language",
+        type=str,
+        default="en",
+        help="Target language code",
+    )
+    clone_parser.add_argument(
+        "--emotion",
+        type=str,
+        help="Optional emotion to apply",
     )
     
     # Download models command
@@ -171,6 +296,16 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
         "--kokoro",
         action="store_true",
         help="Download Kokoro TTS model",
+    )
+    download_parser.add_argument(
+        "--indextts",
+        action="store_true",
+        help="Download IndexTTS v2 model",
+    )
+    download_parser.add_argument(
+        "--fish-speech",
+        action="store_true",
+        help="Download Fish-Speech model",
     )
     download_parser.add_argument(
         "--all",
@@ -218,6 +353,18 @@ def cmd_translate(args: argparse.Namespace) -> int:
     
     if args.voice:
         config.tts.voice = args.voice
+    
+    # IndexTTS/Fish-Speech specific settings
+    if hasattr(args, 'reference_audio') and args.reference_audio:
+        config.tts.indextts_reference_audio = args.reference_audio
+        config.tts.fish_speech_reference_audio = args.reference_audio
+        # Also use as voice for the engine
+        if not args.voice:
+            config.tts.voice = args.reference_audio
+    
+    if hasattr(args, 'emotion') and args.emotion:
+        config.tts.indextts_emotion = args.emotion
+        config.tts.fish_speech_emotion = args.emotion
     
     if args.device != "auto":
         config.stt.device = args.device
@@ -305,6 +452,91 @@ def cmd_list_languages(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_list_emotions(args: argparse.Namespace) -> int:
+    """List available emotion tags for TTS engines."""
+    engine = args.engine
+    
+    print(f"\nAvailable emotions ({engine}):")
+    print(f"{'=' * 40}")
+    
+    if engine == "indextts":
+        from copytalker.core.constants import INDEXTTS_EMOTIONS
+        print("\nIndexTTS v2 emotions (8 basic emotions):")
+        for emotion in INDEXTTS_EMOTIONS:
+            print(f"  - {emotion}")
+        print("\nControl methods:")
+        print("  1. --emotion <name>            Emotion by name")
+        print("  2. --emotion-audio <path>      Emotion from reference audio")
+        print("  3. Text-based inference         Automatic from text content")
+    elif engine == "fish-speech":
+        from copytalker.core.constants import FISH_SPEECH_EMOTION_TAGS
+        print("\nFish-Speech emotion/expression tags (50+):")
+        for i, tag in enumerate(FISH_SPEECH_EMOTION_TAGS):
+            print(f"  - {tag}", end="")
+            if (i + 1) % 4 == 0:
+                print()
+            else:
+                print("\t", end="")
+        print()
+        print("\nUsage: Embed tags in text, e.g. '(happy) Hello world!'")
+    
+    return 0
+
+
+def cmd_synthesize(args: argparse.Namespace) -> int:
+    """Synthesize text to speech."""
+    from copytalker.api import tts_synthesize
+    
+    result = tts_synthesize(
+        text=args.text,
+        language=args.language,
+        engine=args.engine,
+        voice=args.voice,
+        speed=args.speed,
+        output_path=args.output,
+        emotion=getattr(args, 'emotion', None),
+        emotion_audio=getattr(args, 'emotion_audio', None),
+        target_duration=getattr(args, 'target_duration', None),
+        reference_audio=getattr(args, 'reference_audio', None),
+    )
+    
+    if result.success:
+        print(f"\nSynthesis complete!")
+        print(f"  Output: {result.data['output_path']}")
+        print(f"  Duration: {result.data['duration_seconds']:.2f}s")
+        print(f"  Sample rate: {result.data['sample_rate']} Hz")
+    else:
+        print(f"\nSynthesis failed: {result.error}", file=sys.stderr)
+        return 1
+    
+    return 0
+
+
+def cmd_clone_voice(args: argparse.Namespace) -> int:
+    """Clone a voice and synthesize text."""
+    from copytalker.api import clone_voice
+    
+    result = clone_voice(
+        text=args.text,
+        reference_audio=args.reference_audio,
+        engine=args.engine,
+        language=args.language,
+        output_path=args.output,
+        emotion=getattr(args, 'emotion', None),
+    )
+    
+    if result.success:
+        print(f"\nVoice cloning complete!")
+        print(f"  Output: {result.data['output_path']}")
+        print(f"  Duration: {result.data['duration_seconds']:.2f}s")
+        print(f"  Engine: {args.engine}")
+    else:
+        print(f"\nVoice cloning failed: {result.error}", file=sys.stderr)
+        return 1
+    
+    return 0
+
+
 def cmd_download_models(args: argparse.Namespace) -> int:
     """Download models."""
     from copytalker.utils.model_cache import ModelCache
@@ -315,6 +547,8 @@ def cmd_download_models(args: argparse.Namespace) -> int:
         print("Downloading all recommended models...")
         args.whisper = "small"
         args.kokoro = True
+        args.indextts = True
+        args.fish_speech = True
     
     if args.whisper:
         print(f"\nDownloading Whisper {args.whisper} model...")
@@ -343,7 +577,28 @@ def cmd_download_models(args: argparse.Namespace) -> int:
             print(f"Error: {e}", file=sys.stderr)
             return 1
     
-    if not any([args.whisper, args.translation, args.kokoro, args.all]):
+    if hasattr(args, 'indextts') and args.indextts:
+        print("\nDownloading IndexTTS v2 model...")
+        try:
+            cache.download_indextts_model(version="v2")
+            print("IndexTTS v2 model ready!")
+        except Exception as e:
+            print(f"Error downloading IndexTTS: {e}", file=sys.stderr)
+            return 1
+    
+    if hasattr(args, 'fish_speech') and args.fish_speech:
+        print("\nDownloading Fish-Speech model...")
+        try:
+            cache.download_fish_speech_model()
+            print("Fish-Speech model ready!")
+        except Exception as e:
+            print(f"Error downloading Fish-Speech: {e}", file=sys.stderr)
+            return 1
+    
+    if not any([args.whisper, args.translation, args.kokoro,
+                getattr(args, 'indextts', False),
+                getattr(args, 'fish_speech', False),
+                args.all]):
         print("No models specified. Use --help for options.")
         return 1
     
@@ -408,6 +663,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_list_voices(args)
     elif args.command == "list-languages":
         return cmd_list_languages(args)
+    elif args.command == "list-emotions":
+        return cmd_list_emotions(args)
+    elif args.command == "synthesize":
+        return cmd_synthesize(args)
+    elif args.command == "clone-voice":
+        return cmd_clone_voice(args)
     elif args.command == "download-models":
         return cmd_download_models(args)
     elif args.command == "cache":

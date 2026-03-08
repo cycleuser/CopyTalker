@@ -24,3 +24,11 @@ fugashi[unidic]>=1.1.0
 unidic-lite>=1.0.0
 unidic>=1.0.0
 huggingface-hub>=0.8.1
+soundfile>=0.12.0
+# IndexTTS (install separately: pip install indextts)
+# indextts
+# Fish-Speech (install separately: see https://github.com/fishaudio/fish-speech)
+# fish-speech
+# Fish-Speech cloud API SDK
+fish-audio-sdk>=0.1.0
+httpx>=0.24.0

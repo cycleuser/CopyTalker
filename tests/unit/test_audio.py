@@ -32,7 +32,7 @@ class TestAudioCapturer:
         assert capturer.config.vad_aggressiveness == 3
     
     @patch('copytalker.audio.capture.pyaudio.PyAudio')
-    def test_start_stop(self, mock_pyaudio, mock_pyaudio):
+    def test_start_stop(self, mock_pyaudio):
         """Test starting and stopping capture."""
         # Setup mock
         mock_pa = Mock()

@@ -8,8 +8,9 @@ display even when some dependencies are missing.
 import logging
 import queue
 import threading
+import time
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import ttk, scrolledtext, messagebox, filedialog
 from typing import Optional, TYPE_CHECKING
 
 from copytalker import __version__
@@ -30,7 +31,7 @@ class CopyTalkerGUI:
     """Main GUI application for CopyTalker."""
     
     WINDOW_TITLE = "CopyTalker"
-    WINDOW_SIZE = "650x800"
+    WINDOW_SIZE = "650x850"
     UPDATE_INTERVAL_MS = 100
     
     def __init__(self, root: tk.Tk):
@@ -46,10 +47,12 @@ class CopyTalkerGUI:
         self.root.minsize(500, 600)
         
         # State
-        self._pipeline: Optional[TranslationPipeline] = None
+        self._pipeline: Optional["TranslationPipeline"] = None
         self._is_running = False
         self._event_queue: queue.Queue = queue.Queue()
         self._calibrated_noise_level: float = 0.0
+        self._recorder = None  # VoiceRecorder instance (lazy)
+        self._record_timer_id = None
         
         # Build UI
         self._create_widgets()
@@ -79,8 +82,35 @@ class CopyTalkerGUI:
         )
         subtitle_label.pack(pady=(0, 15))
         
-        # Settings frame
-        settings_frame = ttk.LabelFrame(main_frame, text="Settings", padding="10")
+        # Notebook for tabs – the Translation tab preserves the original layout
+        notebook = ttk.Notebook(main_frame)
+        notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # ---- Tab 1: Translation (original layout preserved) ----
+        trans_tab = ttk.Frame(notebook, padding="5")
+        notebook.add(trans_tab, text="Translation")
+        self._create_translation_tab(trans_tab)
+        
+        # ---- Tab 2: Voice Cloning (NEW – incremental addition) ----
+        clone_tab = ttk.Frame(notebook, padding="5")
+        notebook.add(clone_tab, text="Voice Cloning")
+        self._create_voice_cloning_tab(clone_tab)
+        
+        # ---- Tab 3: Models (NEW – incremental addition) ----
+        models_tab = ttk.Frame(notebook, padding="5")
+        notebook.add(models_tab, text="Models")
+        self._create_models_tab(models_tab)
+    
+    # ==================================================================
+    # Tab 1 – Translation (preserves ALL original settings & controls)
+    # ==================================================================
+
+    def _create_translation_tab(self, parent: ttk.Frame) -> None:
+        """Build the Translation tab – identical to the original layout with
+        incremental additions only (new TTS engines, reference audio row)."""
+
+        # ---- Settings frame (original) ----
+        settings_frame = ttk.LabelFrame(parent, text="Settings", padding="10")
         settings_frame.pack(fill=tk.X, pady=(0, 10))
         
         # Source language
@@ -120,6 +150,24 @@ class CopyTalkerGUI:
         self.target_combo.pack(side=tk.LEFT, padx=(10, 0))
         self.target_combo.bind("<<ComboboxSelected>>", self._on_target_changed)
         
+        # TTS Engine  (original + new engines added incrementally)
+        engine_frame = ttk.Frame(settings_frame)
+        engine_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(engine_frame, text="TTS Engine:", width=15).pack(side=tk.LEFT)
+        
+        self.engine_var = tk.StringVar(value="auto")
+        engine_combo = ttk.Combobox(
+            engine_frame,
+            textvariable=self.engine_var,
+            values=["auto", "kokoro", "edge-tts", "pyttsx3", "indextts", "fish-speech"],
+            state="readonly",
+            width=30,
+        )
+        engine_combo.current(0)
+        engine_combo.pack(side=tk.LEFT, padx=(10, 0))
+        engine_combo.bind("<<ComboboxSelected>>", self._on_engine_changed)
+        
         # Voice selection
         voice_frame = ttk.Frame(settings_frame)
         voice_frame.pack(fill=tk.X, pady=5)
@@ -145,28 +193,41 @@ class CopyTalkerGUI:
         )
         self.preview_button.pack(side=tk.LEFT, padx=(5, 0))
         
-        # TTS Engine
-        engine_frame = ttk.Frame(settings_frame)
-        engine_frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Label(engine_frame, text="TTS Engine:", width=15).pack(side=tk.LEFT)
-        
-        self.engine_var = tk.StringVar(value="auto")
-        engine_combo = ttk.Combobox(
-            engine_frame,
-            textvariable=self.engine_var,
-            values=["auto", "kokoro", "edge-tts", "pyttsx3"],
-            state="readonly",
-            width=30,
+        # ---- Voice Cloning Reference (NEW incremental section) ----
+        vc_ref_frame = ttk.LabelFrame(
+            parent, text="Voice Cloning Reference (IndexTTS / Fish-Speech)", padding="10",
         )
-        engine_combo.current(0)
-        engine_combo.pack(side=tk.LEFT, padx=(10, 0))
-        
-        # Advanced Settings frame
-        advanced_frame = ttk.LabelFrame(main_frame, text="Advanced Settings", padding="10")
+        vc_ref_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ref_row = ttk.Frame(vc_ref_frame)
+        ref_row.pack(fill=tk.X, pady=3)
+        ttk.Label(ref_row, text="Reference Audio:", width=15).pack(side=tk.LEFT)
+        self.ref_audio_var = tk.StringVar()
+        ttk.Entry(ref_row, textvariable=self.ref_audio_var, width=24).pack(side=tk.LEFT, padx=(10, 0))
+        ttk.Button(ref_row, text="Browse", command=self._on_browse_ref_audio, width=7).pack(side=tk.LEFT, padx=(5, 0))
+        # Dropdown of saved voice clones
+        self.saved_clones_var = tk.StringVar()
+        self.saved_clones_combo = ttk.Combobox(ref_row, textvariable=self.saved_clones_var, width=12, state="readonly")
+        self.saved_clones_combo.pack(side=tk.LEFT, padx=(5, 0))
+        self.saved_clones_combo.bind("<<ComboboxSelected>>", self._on_saved_clone_selected)
+        self._refresh_saved_clones()
+
+        emo_row = ttk.Frame(vc_ref_frame)
+        emo_row.pack(fill=tk.X, pady=3)
+        ttk.Label(emo_row, text="Emotion:", width=15).pack(side=tk.LEFT)
+        self.emotion_var = tk.StringVar(value="")
+        ttk.Combobox(
+            emo_row, textvariable=self.emotion_var, width=30,
+            values=["", "happy", "sad", "angry", "fearful", "surprised",
+                    "whisper", "excited", "calm", "serious", "gentle",
+                    "neutral", "contemptuous", "disgusted"],
+        ).pack(side=tk.LEFT, padx=(10, 0))
+
+        # ---- Advanced Settings frame (original – ALL fields preserved) ----
+        advanced_frame = ttk.LabelFrame(parent, text="Advanced Settings", padding="10")
         advanced_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # Translation Model
+        # Translation Model (original)
         trans_model_frame = ttk.Frame(advanced_frame)
         trans_model_frame.pack(fill=tk.X, pady=5)
         
@@ -183,7 +244,7 @@ class CopyTalkerGUI:
         trans_model_combo.current(0)
         trans_model_combo.pack(side=tk.LEFT, padx=(10, 0))
         
-        # Translation Device
+        # Translation Device (original)
         trans_device_frame = ttk.Frame(advanced_frame)
         trans_device_frame.pack(fill=tk.X, pady=5)
         
@@ -200,7 +261,7 @@ class CopyTalkerGUI:
         trans_device_combo.current(0)
         trans_device_combo.pack(side=tk.LEFT, padx=(10, 0))
         
-        # TTS Device
+        # TTS Device (original)
         tts_device_frame = ttk.Frame(advanced_frame)
         tts_device_frame.pack(fill=tk.X, pady=5)
         
@@ -217,7 +278,7 @@ class CopyTalkerGUI:
         tts_device_combo.current(0)  # Default to CPU to avoid GPU contention
         tts_device_combo.pack(side=tk.LEFT, padx=(10, 0))
         
-        # Calibration button
+        # Calibration button (original)
         calibrate_frame = ttk.Frame(advanced_frame)
         calibrate_frame.pack(fill=tk.X, pady=5)
         
@@ -238,8 +299,8 @@ class CopyTalkerGUI:
             width=15,
         ).pack(side=tk.LEFT, padx=(10, 0))
         
-        # Status frame
-        status_frame = ttk.LabelFrame(main_frame, text="Status", padding="10")
+        # ---- Status frame (original) ----
+        status_frame = ttk.LabelFrame(parent, text="Status", padding="10")
         status_frame.pack(fill=tk.X, pady=(0, 10))
         
         self.status_var = tk.StringVar(value="Ready")
@@ -250,8 +311,8 @@ class CopyTalkerGUI:
         )
         status_label.pack()
         
-        # Control buttons
-        button_frame = ttk.Frame(main_frame)
+        # ---- Control buttons (original – all three preserved) ----
+        button_frame = ttk.Frame(parent)
         button_frame.pack(fill=tk.X, pady=(0, 10))
         
         self.start_button = ttk.Button(
@@ -279,8 +340,8 @@ class CopyTalkerGUI:
         )
         self.download_button.pack(side=tk.LEFT)
         
-        # Transcription display
-        trans_frame = ttk.LabelFrame(main_frame, text="Transcription (What you said)", padding="10")
+        # ---- Transcription display (original) ----
+        trans_frame = ttk.LabelFrame(parent, text="Transcription (What you said)", padding="10")
         trans_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         self.transcription_text = scrolledtext.ScrolledText(
@@ -292,8 +353,8 @@ class CopyTalkerGUI:
         )
         self.transcription_text.pack(fill=tk.BOTH, expand=True)
         
-        # Translation display
-        translation_frame = ttk.LabelFrame(main_frame, text="Translation", padding="10")
+        # ---- Translation display (original) ----
+        translation_frame = ttk.LabelFrame(parent, text="Translation", padding="10")
         translation_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         self.translation_text = scrolledtext.ScrolledText(
@@ -305,13 +366,157 @@ class CopyTalkerGUI:
         )
         self.translation_text.pack(fill=tk.BOTH, expand=True)
         
-        # Footer
+        # Footer (original)
         footer_label = ttk.Label(
-            main_frame,
+            parent,
             text="Press Start to begin real-time translation",
             font=("Helvetica", 9),
         )
         footer_label.pack(pady=(5, 0))
+
+    # ==================================================================
+    # Tab 2 – Voice Cloning (NEW incremental tab)
+    # ==================================================================
+
+    def _create_voice_cloning_tab(self, parent: ttk.Frame) -> None:
+        """Build the voice cloning tab with record / upload / synthesize."""
+
+        # --- Record section ---
+        rec_frame = ttk.LabelFrame(parent, text="Record Reference Audio", padding="10")
+        rec_frame.pack(fill=tk.X, pady=(0, 8))
+
+        info_label = ttk.Label(
+            rec_frame,
+            text="Record 5-30 seconds of clear speech for voice cloning.\n"
+                 "Speak naturally in a quiet environment.",
+            wraplength=600,
+        )
+        info_label.pack(anchor=tk.W, pady=(0, 6))
+
+        btn_row = ttk.Frame(rec_frame)
+        btn_row.pack(fill=tk.X, pady=4)
+
+        self.rec_start_btn = ttk.Button(btn_row, text="Start Recording", command=self._on_rec_start, width=16)
+        self.rec_start_btn.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.rec_stop_btn = ttk.Button(btn_row, text="Stop Recording", command=self._on_rec_stop, width=16, state=tk.DISABLED)
+        self.rec_stop_btn.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.rec_play_btn = ttk.Button(btn_row, text="Play", command=self._on_rec_play, width=8, state=tk.DISABLED)
+        self.rec_play_btn.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.rec_timer_var = tk.StringVar(value="0.0s")
+        ttk.Label(btn_row, textvariable=self.rec_timer_var, font=("Helvetica", 12, "bold"), width=8).pack(side=tk.LEFT, padx=(4, 0))
+
+        # Level meter (simple progress bar)
+        self.rec_level_var = tk.DoubleVar(value=0.0)
+        self.rec_level_bar = ttk.Progressbar(rec_frame, variable=self.rec_level_var, maximum=1.0, length=300)
+        self.rec_level_bar.pack(fill=tk.X, pady=4)
+
+        # Save row
+        save_row = ttk.Frame(rec_frame)
+        save_row.pack(fill=tk.X, pady=4)
+        ttk.Label(save_row, text="Name:").pack(side=tk.LEFT)
+        self.rec_name_var = tk.StringVar(value="")
+        ttk.Entry(save_row, textvariable=self.rec_name_var, width=20).pack(side=tk.LEFT, padx=(6, 6))
+        self.rec_save_btn = ttk.Button(save_row, text="Save Recording", command=self._on_rec_save, width=14, state=tk.DISABLED)
+        self.rec_save_btn.pack(side=tk.LEFT)
+
+        # --- Upload section ---
+        upload_frame = ttk.LabelFrame(parent, text="Upload Reference Audio", padding="10")
+        upload_frame.pack(fill=tk.X, pady=(0, 8))
+
+        urow = ttk.Frame(upload_frame)
+        urow.pack(fill=tk.X)
+        self.upload_path_var = tk.StringVar()
+        ttk.Entry(urow, textvariable=self.upload_path_var, width=40).pack(side=tk.LEFT)
+        ttk.Button(urow, text="Browse...", command=self._on_upload_browse, width=10).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(urow, text="Import", command=self._on_upload_import, width=8).pack(side=tk.LEFT, padx=(6, 0))
+
+        # --- Saved voice clones ---
+        saved_frame = ttk.LabelFrame(parent, text="Saved Voice Clones", padding="10")
+        saved_frame.pack(fill=tk.X, pady=(0, 8))
+
+        self.clones_listbox = tk.Listbox(saved_frame, height=5, font=("Helvetica", 10))
+        self.clones_listbox.pack(fill=tk.X, pady=(0, 4))
+        self._populate_clones_listbox()
+
+        cbl_row = ttk.Frame(saved_frame)
+        cbl_row.pack(fill=tk.X)
+        ttk.Button(cbl_row, text="Refresh", command=self._populate_clones_listbox, width=8).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(cbl_row, text="Use for Translation", command=self._on_use_clone, width=16).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(cbl_row, text="Play", command=self._on_play_clone, width=8).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(cbl_row, text="Delete", command=self._on_delete_clone, width=8).pack(side=tk.LEFT)
+
+        # --- Quick TTS test ---
+        test_frame = ttk.LabelFrame(parent, text="Test Voice Clone", padding="10")
+        test_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 0))
+
+        trow = ttk.Frame(test_frame)
+        trow.pack(fill=tk.X, pady=(0, 4))
+        ttk.Label(trow, text="Engine:", width=8).pack(side=tk.LEFT)
+        self.clone_engine_var = tk.StringVar(value="indextts")
+        ttk.Combobox(trow, textvariable=self.clone_engine_var, values=["indextts", "fish-speech"], state="readonly", width=14).pack(side=tk.LEFT, padx=(4, 0))
+        ttk.Label(trow, text="Language:", width=10).pack(side=tk.LEFT, padx=(10, 0))
+        self.clone_lang_var = tk.StringVar(value="en")
+        ttk.Combobox(trow, textvariable=self.clone_lang_var, values=[c for c, _ in SUPPORTED_LANGUAGES], state="readonly", width=6).pack(side=tk.LEFT, padx=(4, 0))
+
+        self.clone_text_var = tk.StringVar(value="Hello, this is a voice cloning test.")
+        ttk.Entry(test_frame, textvariable=self.clone_text_var, width=50, font=("Helvetica", 11)).pack(fill=tk.X, pady=(0, 4))
+
+        tbtn_row = ttk.Frame(test_frame)
+        tbtn_row.pack(fill=tk.X)
+        self.clone_synth_btn = ttk.Button(tbtn_row, text="Synthesize & Play", command=self._on_clone_test, width=18)
+        self.clone_synth_btn.pack(side=tk.LEFT, padx=(0, 6))
+        self.clone_save_btn = ttk.Button(tbtn_row, text="Synthesize & Save", command=self._on_clone_save, width=18)
+        self.clone_save_btn.pack(side=tk.LEFT)
+
+    # ==================================================================
+    # Tab 3 – Models (NEW incremental tab)
+    # ==================================================================
+
+    def _create_models_tab(self, parent: ttk.Frame) -> None:
+        """Build the model download / cache management tab."""
+        ttk.Label(
+            parent,
+            text="Download and manage TTS / translation models. Large models require GPU and disk space.",
+            wraplength=600,
+        ).pack(anchor=tk.W, pady=(0, 8))
+
+        # Download buttons
+        dl_frame = ttk.LabelFrame(parent, text="Download Models", padding="10")
+        dl_frame.pack(fill=tk.X, pady=(0, 8))
+
+        for label, cmd, desc in [
+            ("IndexTTS v2", self._on_dl_indextts, "Voice cloning (~4 GB, GPU recommended)"),
+            ("Fish-Speech", self._on_dl_fish_speech, "Multi-language TTS (~2 GB, GPU recommended)"),
+            ("Kokoro TTS", self._on_dl_kokoro, "Neural TTS (~330 MB)"),
+            ("Whisper (small)", self._on_dl_whisper, "Speech recognition (~465 MB)"),
+            ("Translation Models", self._on_dl_translation, "Helsinki / NLLB translation models"),
+        ]:
+            row = ttk.Frame(dl_frame)
+            row.pack(fill=tk.X, pady=3)
+            ttk.Button(row, text=f"Download {label}", command=cmd, width=24).pack(side=tk.LEFT)
+            ttk.Label(row, text=desc).pack(side=tk.LEFT, padx=(10, 0))
+
+        ttk.Button(dl_frame, text="Download ALL Recommended", command=self._on_dl_all, width=26).pack(pady=(8, 0), anchor=tk.W)
+
+        # Download progress
+        self.dl_progress_var = tk.StringVar(value="")
+        ttk.Label(parent, textvariable=self.dl_progress_var, font=("Helvetica", 10)).pack(anchor=tk.W, pady=(0, 6))
+
+        # Cache info
+        cache_frame = ttk.LabelFrame(parent, text="Cache", padding="10")
+        cache_frame.pack(fill=tk.X)
+
+        self.cache_info_var = tk.StringVar(value="")
+        ttk.Label(cache_frame, textvariable=self.cache_info_var, justify=tk.LEFT).pack(anchor=tk.W)
+        ttk.Button(cache_frame, text="Refresh", command=self._refresh_cache_info, width=10).pack(anchor=tk.W, pady=(6, 0))
+        self._refresh_cache_info()
+
+    # ==================================================================
+    # Bindings (original)
+    # ==================================================================
     
     def _setup_bindings(self) -> None:
         """Setup keyboard bindings."""
@@ -334,11 +539,18 @@ class CopyTalkerGUI:
             "Real-time multilingual speech-to-speech translation\n\n"
             "https://github.com/cycleuser/CopyTalker"
         )
+
+    # ==================================================================
+    # Voice list helpers (original + incremental engine handler)
+    # ==================================================================
     
     def _update_voice_list(self) -> None:
         """Update voice list based on selected target language."""
         target_lang = self._get_target_lang()
-        voices = get_available_voices(target_lang, "kokoro")
+        engine = self.engine_var.get()
+        if engine in ("auto", ""):
+            engine = "kokoro"
+        voices = get_available_voices(target_lang, engine)
         
         self.voice_combo["values"] = voices
         if voices:
@@ -347,6 +559,42 @@ class CopyTalkerGUI:
     def _on_target_changed(self, event=None) -> None:
         """Handle target language change."""
         self._update_voice_list()
+
+    def _on_engine_changed(self, event=None) -> None:
+        """Handle TTS engine change – update voice list."""
+        self._update_voice_list()
+
+    def _on_browse_ref_audio(self) -> None:
+        """Browse for a reference audio file."""
+        path = filedialog.askopenfilename(
+            title="Select Reference Audio",
+            filetypes=[("Audio files", "*.wav *.mp3 *.flac *.ogg"), ("All files", "*.*")],
+        )
+        if path:
+            self.ref_audio_var.set(path)
+
+    def _refresh_saved_clones(self) -> None:
+        """Refresh the saved voice clones dropdown."""
+        try:
+            from copytalker.audio.recorder import list_saved_voice_clones
+            clones = list_saved_voice_clones()
+            names = [c["name"] for c in clones]
+            self.saved_clones_combo["values"] = names
+        except Exception:
+            pass
+
+    def _on_saved_clone_selected(self, event=None) -> None:
+        """Set the reference audio to the selected saved clone."""
+        name = self.saved_clones_var.get()
+        if name:
+            from copytalker.core.config import get_default_cache_dir
+            path = get_default_cache_dir() / "voice_clones" / f"{name}.wav"
+            if path.exists():
+                self.ref_audio_var.set(str(path))
+
+    # ==================================================================
+    # Voice Preview (original, extended for ref audio)
+    # ==================================================================
     
     def _on_preview_voice(self) -> None:
         """Preview the selected voice with sample text."""
@@ -354,37 +602,38 @@ class CopyTalkerGUI:
         target_lang = self._get_target_lang()
         engine = self.engine_var.get()
         device = self.tts_device_var.get()
+        ref_audio = self.ref_audio_var.get() or None
         
-        if not voice:
+        if not voice and not ref_audio:
             messagebox.showwarning("Warning", "Please select a voice first")
             return
         
         # Sample text based on target language
         sample_texts = {
-            "zh": "你好，这是语音预览测试。",
+            "zh": "\u4f60\u597d\uff0c\u8fd9\u662f\u8bed\u97f3\u9884\u89c8\u6d4b\u8bd5\u3002",
             "en": "Hello, this is a voice preview test.",
-            "ja": "こんにちは、これは音声プレビューテストです。",
-            "ko": "안녕하세요, 이것은 음성 미리보기 테스트입니다.",
+            "ja": "\u3053\u3093\u306b\u3061\u306f\u3001\u3053\u308c\u306f\u97f3\u58f0\u30d7\u30ec\u30d3\u30e5\u30fc\u30c6\u30b9\u30c8\u3067\u3059\u3002",
+            "ko": "\uc548\ub155\ud558\uc138\uc694, \uc774\uac83\uc740 \uc74c\uc131 \ubbf8\ub9ac\ubcf4\uae30 \ud14c\uc2a4\ud2b8\uc785\ub2c8\ub2e4.",
             "es": "Hola, esta es una prueba de vista previa de voz.",
-            "fr": "Bonjour, ceci est un test de prévisualisation vocale.",
+            "fr": "Bonjour, ceci est un test de pr\u00e9visualisation vocale.",
             "de": "Hallo, dies ist ein Sprachvorschautest.",
-            "ru": "Привет, это тест предварительного просмотра голоса.",
-            "ar": "مرحبا، هذا اختبار معاينة الصوت.",
+            "ru": "\u041f\u0440\u0438\u0432\u0435\u0442, \u044d\u0442\u043e \u0442\u0435\u0441\u0442 \u043f\u0440\u0435\u0434\u0432\u0430\u0440\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0433\u043e \u043f\u0440\u043e\u0441\u043b\u0443\u0448\u0438\u0432\u0430\u043d\u0438\u044f \u0433\u043e\u043b\u043e\u0441\u0430.",
+            "ar": "\u0645\u0631\u062d\u0628\u0627\u060c \u0647\u0630\u0627 \u0627\u062e\u062a\u0628\u0627\u0631 \u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0635\u0648\u062a.",
         }
         sample_text = sample_texts.get(target_lang, sample_texts["en"])
         
         self.preview_button.config(state=tk.DISABLED)
-        self.status_var.set(f"Previewing voice: {voice}...")
+        self.status_var.set(f"Previewing voice: {voice or 'clone'}...")
         
         # Run preview in background thread
         thread = threading.Thread(
             target=self._preview_voice_thread,
-            args=(sample_text, target_lang, voice, engine, device),
+            args=(sample_text, target_lang, voice, engine, device, ref_audio),
             daemon=True,
         )
         thread.start()
     
-    def _preview_voice_thread(self, text: str, lang: str, voice: str, engine: str, device: str) -> None:
+    def _preview_voice_thread(self, text: str, lang: str, voice: str, engine: str, device: str, ref_audio=None) -> None:
         """Run voice preview in background thread."""
         try:
             from copytalker.core.config import TTSConfig
@@ -394,16 +643,19 @@ class CopyTalkerGUI:
             # Create TTS config
             tts_config = TTSConfig(
                 engine=engine,
-                voice=voice,
+                voice=voice or ref_audio,
                 language=lang,
                 device=device,
             )
+            if ref_audio:
+                tts_config.indextts_reference_audio = ref_audio
+                tts_config.fish_speech_reference_audio = ref_audio
             
             # Get TTS engine
             tts = get_tts_engine(engine, tts_config)
             
             # Synthesize
-            audio, sample_rate = tts.synthesize(text, lang, voice)
+            audio, sample_rate = tts.synthesize(text, lang, ref_audio or voice)
             
             if len(audio) == 0:
                 self._event_queue.put(("error", "TTS produced no audio"))
@@ -423,6 +675,10 @@ class CopyTalkerGUI:
             # Re-enable button via event queue
             self._event_queue.put(("preview_done", None))
     
+    # ==================================================================
+    # Calibration (original)
+    # ==================================================================
+
     def _on_calibrate(self) -> None:
         """Calibrate noise level."""
         self.calibrate_button.config(state=tk.DISABLED)
@@ -457,8 +713,12 @@ class CopyTalkerGUI:
             self._event_queue.put(("error", f"Calibration failed: {e}"))
             self._event_queue.put(("calibration_done", 0.0))
     
+    # ==================================================================
+    # Download Models – Translation tab button (original behaviour)
+    # ==================================================================
+
     def _on_download_models(self) -> None:
-        """Download all required models."""
+        """Download all required models (original Download Models button)."""
         self.download_button.config(state=tk.DISABLED)
         self.status_var.set("Downloading models... This may take a while")
         
@@ -469,9 +729,9 @@ class CopyTalkerGUI:
         thread.start()
     
     def _download_models_thread(self) -> None:
-        """Download models in background thread."""
+        """Download models in background thread (original behaviour preserved)."""
         try:
-            from copytalker.core.constants import SUPPORTED_LANGUAGES, DEFAULT_TRANSLATION_MODELS
+            from copytalker.core.constants import DEFAULT_TRANSLATION_MODELS
             
             total_models = []
             
@@ -494,8 +754,6 @@ class CopyTalkerGUI:
             for i, model_name in enumerate(total_models):
                 self._event_queue.put(("status", f"Downloading ({i+1}/{len(total_models)}): {model_name}"))
                 try:
-                    from transformers import AutoTokenizer, AutoModel
-                    
                     if model_name.startswith("Helsinki-NLP/"):
                         from transformers import MarianTokenizer, MarianMTModel
                         MarianTokenizer.from_pretrained(model_name)
@@ -505,6 +763,7 @@ class CopyTalkerGUI:
                         AutoTokenizer.from_pretrained(model_name)
                         AutoModelForSeq2SeqLM.from_pretrained(model_name)
                     else:
+                        from transformers import AutoTokenizer, AutoModel
                         AutoTokenizer.from_pretrained(model_name)
                         AutoModel.from_pretrained(model_name)
                     
@@ -516,7 +775,7 @@ class CopyTalkerGUI:
                     failed.append(model_name)
             
             # Also download Whisper model
-            self._event_queue.put(("status", f"Downloading Whisper (small)..."))
+            self._event_queue.put(("status", "Downloading Whisper (small)..."))
             try:
                 from faster_whisper import WhisperModel
                 WhisperModel("small", device="cpu", compute_type="float32")
@@ -537,7 +796,351 @@ class CopyTalkerGUI:
             logger.error(f"Download error: {e}")
             self._event_queue.put(("error", f"Download error: {e}"))
             self._event_queue.put(("download_done", None))
+
+    # ==================================================================
+    # Recording (voice cloning tab)
+    # ==================================================================
+
+    def _on_rec_start(self) -> None:
+        from copytalker.audio.recorder import VoiceRecorder
+        self._recorder = VoiceRecorder(sample_rate=16000)
+        self._recorder.start()
+        self.rec_start_btn.config(state=tk.DISABLED)
+        self.rec_stop_btn.config(state=tk.NORMAL)
+        self.rec_save_btn.config(state=tk.DISABLED)
+        self.rec_play_btn.config(state=tk.DISABLED)
+        self.status_var.set("Recording... Speak clearly into your microphone")
+        self._update_rec_timer()
+
+    def _on_rec_stop(self) -> None:
+        if self._recorder and self._recorder.is_recording:
+            self._recorder.stop()
+        self.rec_start_btn.config(state=tk.NORMAL)
+        self.rec_stop_btn.config(state=tk.DISABLED)
+        self.rec_save_btn.config(state=tk.NORMAL)
+        self.rec_play_btn.config(state=tk.NORMAL)
+        if self._record_timer_id:
+            self.root.after_cancel(self._record_timer_id)
+            self._record_timer_id = None
+        dur = self._recorder.duration if self._recorder else 0
+        self.status_var.set(f"Recording stopped ({dur:.1f}s)")
+        self.rec_timer_var.set(f"{dur:.1f}s")
+
+    def _update_rec_timer(self) -> None:
+        if self._recorder and self._recorder.is_recording:
+            self.rec_timer_var.set(f"{self._recorder.duration:.1f}s")
+            level = self._recorder.get_rms_level()
+            self.rec_level_var.set(min(level * 5, 1.0))
+            self._record_timer_id = self.root.after(100, self._update_rec_timer)
+
+    def _on_rec_play(self) -> None:
+        if not self._recorder or self._recorder.duration == 0:
+            return
+        threading.Thread(target=self._play_recording_thread, daemon=True).start()
+
+    def _play_recording_thread(self) -> None:
+        try:
+            from copytalker.audio.playback import AudioPlayer
+            audio = self._recorder.get_audio_array()
+            if len(audio) == 0:
+                return
+            player = AudioPlayer(default_sample_rate=16000)
+            player.play(audio, 16000, blocking=True)
+            player.close()
+        except Exception as e:
+            logger.error(f"Playback error: {e}")
+
+    def _on_rec_save(self) -> None:
+        if not self._recorder:
+            return
+        name = self.rec_name_var.get().strip()
+        if not name:
+            name = f"voice_{int(time.time())}"
+        try:
+            path = self._recorder.save(name=name)
+            self.ref_audio_var.set(path)
+            self._refresh_saved_clones()
+            self._populate_clones_listbox()
+            self.status_var.set(f"Saved: {path}")
+            messagebox.showinfo("Saved", f"Voice clone reference saved:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Save failed: {e}")
+
+    # ==================================================================
+    # Upload (voice cloning tab)
+    # ==================================================================
+
+    def _on_upload_browse(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Select Audio File",
+            filetypes=[("Audio files", "*.wav *.mp3 *.flac *.ogg"), ("All files", "*.*")],
+        )
+        if path:
+            self.upload_path_var.set(path)
+
+    def _on_upload_import(self) -> None:
+        src = self.upload_path_var.get().strip()
+        if not src:
+            messagebox.showwarning("Warning", "Select an audio file first")
+            return
+        import shutil
+        from pathlib import Path
+        from copytalker.core.config import get_default_cache_dir
+        src_path = Path(src)
+        if not src_path.exists():
+            messagebox.showerror("Error", f"File not found: {src}")
+            return
+        dest_dir = get_default_cache_dir() / "voice_clones"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / src_path.name
+        shutil.copy2(str(src_path), str(dest))
+        self.ref_audio_var.set(str(dest))
+        self._refresh_saved_clones()
+        self._populate_clones_listbox()
+        self.status_var.set(f"Imported: {dest.name}")
+
+    # ==================================================================
+    # Clones Listbox (voice cloning tab)
+    # ==================================================================
+
+    def _populate_clones_listbox(self) -> None:
+        try:
+            from copytalker.audio.recorder import list_saved_voice_clones
+            clones = list_saved_voice_clones()
+            self.clones_listbox.delete(0, tk.END)
+            for c in clones:
+                self.clones_listbox.insert(tk.END, f"{c['name']}  ({c['size_kb']:.0f} KB)")
+        except Exception:
+            pass
+
+    def _on_use_clone(self) -> None:
+        sel = self.clones_listbox.curselection()
+        if not sel:
+            messagebox.showwarning("Warning", "Select a voice clone first")
+            return
+        from copytalker.audio.recorder import list_saved_voice_clones
+        clones = list_saved_voice_clones()
+        if sel[0] < len(clones):
+            self.ref_audio_var.set(clones[sel[0]]["path"])
+            self.status_var.set(f"Using voice clone: {clones[sel[0]]['name']}")
+
+    def _on_play_clone(self) -> None:
+        sel = self.clones_listbox.curselection()
+        if not sel:
+            return
+        from copytalker.audio.recorder import list_saved_voice_clones
+        clones = list_saved_voice_clones()
+        if sel[0] < len(clones):
+            threading.Thread(target=self._play_file_thread, args=(clones[sel[0]]["path"],), daemon=True).start()
+
+    def _play_file_thread(self, path: str) -> None:
+        try:
+            import wave
+            import numpy as np
+            from copytalker.audio.playback import AudioPlayer
+            with wave.open(path, "rb") as wf:
+                sr = wf.getframerate()
+                raw = wf.readframes(wf.getnframes())
+            audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+            player = AudioPlayer(default_sample_rate=sr)
+            player.play(audio, sr, blocking=True)
+            player.close()
+        except Exception as e:
+            logger.error(f"Play clone error: {e}")
+
+    def _on_delete_clone(self) -> None:
+        sel = self.clones_listbox.curselection()
+        if not sel:
+            return
+        from copytalker.audio.recorder import list_saved_voice_clones
+        clones = list_saved_voice_clones()
+        if sel[0] < len(clones):
+            clone = clones[sel[0]]
+            if messagebox.askyesno("Confirm", f"Delete '{clone['name']}'?"):
+                import os
+                os.unlink(clone["path"])
+                self._populate_clones_listbox()
+                self._refresh_saved_clones()
+
+    # ==================================================================
+    # Clone Test (voice cloning tab)
+    # ==================================================================
+
+    def _on_clone_test(self) -> None:
+        ref = self.ref_audio_var.get().strip()
+        if not ref:
+            messagebox.showwarning("Warning", "Provide reference audio first (record or upload)")
+            return
+        text = self.clone_text_var.get().strip()
+        if not text:
+            return
+        engine = self.clone_engine_var.get()
+        lang = self.clone_lang_var.get()
+        self.clone_synth_btn.config(state=tk.DISABLED)
+        self.status_var.set("Synthesizing voice clone...")
+        threading.Thread(
+            target=self._clone_test_thread,
+            args=(text, ref, engine, lang, True),
+            daemon=True,
+        ).start()
+
+    def _on_clone_save(self) -> None:
+        ref = self.ref_audio_var.get().strip()
+        if not ref:
+            messagebox.showwarning("Warning", "Provide reference audio first")
+            return
+        text = self.clone_text_var.get().strip()
+        if not text:
+            return
+        out = filedialog.asksaveasfilename(
+            defaultextension=".wav", filetypes=[("WAV files", "*.wav")],
+        )
+        if not out:
+            return
+        engine = self.clone_engine_var.get()
+        lang = self.clone_lang_var.get()
+        self.clone_save_btn.config(state=tk.DISABLED)
+        self.status_var.set("Synthesizing...")
+        threading.Thread(
+            target=self._clone_test_thread,
+            args=(text, ref, engine, lang, False, out),
+            daemon=True,
+        ).start()
+
+    def _clone_test_thread(self, text, ref, engine, lang, play=True, save_path=None) -> None:
+        try:
+            from copytalker.core.config import TTSConfig
+            from copytalker.tts.base import get_tts_engine
+            tts_config = TTSConfig(engine=engine, language=lang, device=self.tts_device_var.get())
+            tts_config.indextts_reference_audio = ref
+            tts_config.fish_speech_reference_audio = ref
+            emotion = self.emotion_var.get()
+            if emotion:
+                tts_config.indextts_emotion = emotion
+                tts_config.fish_speech_emotion = emotion
+            tts = get_tts_engine(engine, tts_config)
+            audio, sr = tts.synthesize(text, lang, ref)
+            if len(audio) == 0:
+                self._event_queue.put(("error", "Voice clone produced no audio"))
+                return
+            if save_path:
+                from copytalker.api import _write_wav
+                _write_wav(save_path, audio, sr)
+                self._event_queue.put(("status", f"Saved: {save_path}"))
+            if play:
+                from copytalker.audio.playback import AudioPlayer
+                player = AudioPlayer(default_sample_rate=sr)
+                player.play(audio, sr, blocking=True)
+                player.close()
+                self._event_queue.put(("status", "Voice clone playback complete"))
+        except Exception as e:
+            logger.error(f"Clone test error: {e}")
+            self._event_queue.put(("error", f"Clone test failed: {e}"))
+        finally:
+            self._event_queue.put(("clone_test_done", None))
+
+    # ==================================================================
+    # Model Downloads (Models tab)
+    # ==================================================================
+
+    def _on_dl_indextts(self) -> None:
+        self._run_download("indextts")
+
+    def _on_dl_fish_speech(self) -> None:
+        self._run_download("fish_speech")
+
+    def _on_dl_kokoro(self) -> None:
+        self._run_download("kokoro")
+
+    def _on_dl_whisper(self) -> None:
+        self._run_download("whisper")
+
+    def _on_dl_translation(self) -> None:
+        self._run_download("translation")
+
+    def _on_dl_all(self) -> None:
+        self._run_download("all")
+
+    def _run_download(self, what: str) -> None:
+        self.dl_progress_var.set(f"Downloading {what}...")
+        self.status_var.set(f"Downloading {what}... This may take a while")
+        threading.Thread(target=self._download_thread, args=(what,), daemon=True).start()
+
+    def _download_thread(self, what: str) -> None:
+        try:
+            from copytalker.utils.model_cache import ModelCache
+            cache = ModelCache()
+            failed = []
+
+            targets = [what] if what != "all" else ["indextts", "fish_speech", "kokoro", "whisper", "translation"]
+
+            for target in targets:
+                self._event_queue.put(("dl_progress", f"Downloading {target}..."))
+                try:
+                    if target == "indextts":
+                        cache.download_indextts_model()
+                    elif target == "fish_speech":
+                        cache.download_fish_speech_model()
+                    elif target == "kokoro":
+                        cache.download_kokoro_model()
+                    elif target == "whisper":
+                        cache.download_whisper_model("small")
+                    elif target == "translation":
+                        # Download all Helsinki + NLLB models
+                        from copytalker.core.constants import DEFAULT_TRANSLATION_MODELS
+                        for key, models in DEFAULT_TRANSLATION_MODELS.items():
+                            if key == "multilingual":
+                                continue
+                            for m in models:
+                                if m.startswith("Helsinki-NLP/"):
+                                    self._event_queue.put(("dl_progress", f"Downloading {m}..."))
+                                    try:
+                                        from transformers import MarianTokenizer, MarianMTModel
+                                        MarianTokenizer.from_pretrained(m)
+                                        MarianMTModel.from_pretrained(m)
+                                    except Exception as e2:
+                                        failed.append(f"{m}: {e2}")
+                        # NLLB
+                        self._event_queue.put(("dl_progress", "Downloading NLLB..."))
+                        try:
+                            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+                            AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
+                            AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M")
+                        except Exception as e2:
+                            failed.append(f"nllb: {e2}")
+                except Exception as e:
+                    logger.error(f"Download {target} failed: {e}")
+                    failed.append(f"{target}: {e}")
+
+            if failed:
+                msg = "Some downloads failed:\n" + "\n".join(failed)
+                self._event_queue.put(("error", msg))
+            else:
+                self._event_queue.put(("status", "Download complete!"))
+                self._event_queue.put(("dl_progress", "All downloads complete!"))
+        except Exception as e:
+            self._event_queue.put(("error", f"Download error: {e}"))
+        finally:
+            self._event_queue.put(("download_done", None))
+
+    def _refresh_cache_info(self) -> None:
+        try:
+            from copytalker.utils.model_cache import ModelCache, format_size
+            cache = ModelCache()
+            size = format_size(cache.get_cache_size())
+            cached = cache.get_cached_models()
+            lines = [f"Cache dir: {cache.cache_dir}", f"Total size: {size}"]
+            for cat, items in cached.items():
+                if items:
+                    lines.append(f"  {cat}: {', '.join(items)}")
+            self.cache_info_var.set("\n".join(lines))
+        except Exception as e:
+            self.cache_info_var.set(f"Error: {e}")
     
+    # ==================================================================
+    # Language helpers (original)
+    # ==================================================================
+
     def _get_source_lang(self) -> str:
         """Get selected source language code."""
         selection = self.source_combo.get()
@@ -559,6 +1162,10 @@ class CopyTalkerGUI:
                 return code
         return "en"
     
+    # ==================================================================
+    # Translation Pipeline (original, extended with ref_audio/emotion)
+    # ==================================================================
+
     def _on_start(self) -> None:
         """Start the translation pipeline."""
         if self._is_running:
@@ -579,6 +1186,21 @@ class CopyTalkerGUI:
         config.tts.voice = self.voice_var.get()
         config.tts.device = self.tts_device_var.get()
         
+        # Incremental: apply reference audio and emotion if provided
+        ref_audio = self.ref_audio_var.get()
+        if ref_audio:
+            config.tts.indextts_reference_audio = ref_audio
+            config.tts.fish_speech_reference_audio = ref_audio
+            if not config.tts.voice or config.tts.voice in (
+                "(reference audio file)", "(reference audio / voice ID)"
+            ):
+                config.tts.voice = ref_audio
+
+        emotion = self.emotion_var.get()
+        if emotion:
+            config.tts.indextts_emotion = emotion
+            config.tts.fish_speech_emotion = emotion
+
         # Apply calibrated noise level if available
         if self._calibrated_noise_level > 0:
             config.audio.calibrated_noise_level = self._calibrated_noise_level
@@ -658,6 +1280,10 @@ class CopyTalkerGUI:
         """Handle error event."""
         self._event_queue.put(("error", event.data))
     
+    # ==================================================================
+    # Event processing (original, extended for new event types)
+    # ==================================================================
+
     def _process_events(self) -> None:
         """Process events from the queue (runs in main thread)."""
         try:
@@ -675,7 +1301,9 @@ class CopyTalkerGUI:
                         f"{data.translated_text}\n"
                     )
                 elif event_type == "status":
-                    self.status_var.set(data)
+                    self.status_var.set(str(data))
+                elif event_type == "dl_progress":
+                    self.dl_progress_var.set(str(data))
                 elif event_type == "error":
                     self.status_var.set(f"Error: {data}")
                     messagebox.showerror("Error", str(data))
@@ -694,6 +1322,10 @@ class CopyTalkerGUI:
                         self.noise_level_var.set("Failed")
                 elif event_type == "download_done":
                     self.download_button.config(state=tk.NORMAL)
+                    self._refresh_cache_info()
+                elif event_type == "clone_test_done":
+                    self.clone_synth_btn.config(state=tk.NORMAL)
+                    self.clone_save_btn.config(state=tk.NORMAL)
                     
         except queue.Empty:
             pass
@@ -717,6 +1349,8 @@ class CopyTalkerGUI:
     
     def _on_quit(self) -> None:
         """Handle quit event."""
+        if self._recorder and self._recorder.is_recording:
+            self._recorder.stop()
         if self._is_running:
             self._on_stop()
         self.root.quit()
