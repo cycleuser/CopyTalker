@@ -729,69 +729,66 @@ class CopyTalkerGUI:
         thread.start()
     
     def _download_models_thread(self) -> None:
-        """Download models in background thread (original behaviour preserved)."""
+        """Download models in background thread.
+
+        Uses ModelCache (huggingface_hub snapshot_download) for all downloads.
+        Supports HF_ENDPOINT env var for mirror sites (e.g. https://hf-mirror.com).
+        """
         try:
+            from copytalker.utils.model_cache import ModelCache
             from copytalker.core.constants import DEFAULT_TRANSLATION_MODELS
-            
+
+            cache = ModelCache()
+            downloaded = 0
+            failed = []
+
+            # Collect Helsinki + NLLB models
             total_models = []
-            
-            # Collect Helsinki models for all defined pairs
             for key, models in DEFAULT_TRANSLATION_MODELS.items():
                 if key == "multilingual":
                     continue
                 for m in models:
-                    if m.startswith("Helsinki-NLP/") and m not in total_models:
+                    if m not in total_models:
                         total_models.append(m)
-            
-            # Add NLLB default model
             nllb_model = "facebook/nllb-200-distilled-600M"
             if nllb_model not in total_models:
                 total_models.append(nllb_model)
-            
-            downloaded = 0
-            failed = []
-            
+
+            # Download translation models via ModelCache
             for i, model_name in enumerate(total_models):
-                self._event_queue.put(("status", f"Downloading ({i+1}/{len(total_models)}): {model_name}"))
+                self._event_queue.put(
+                    ("status", f"Downloading ({i+1}/{len(total_models)}): {model_name}")
+                )
                 try:
-                    if model_name.startswith("Helsinki-NLP/"):
-                        from transformers import MarianTokenizer, MarianMTModel
-                        MarianTokenizer.from_pretrained(model_name)
-                        MarianMTModel.from_pretrained(model_name)
-                    elif "nllb" in model_name:
-                        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-                        AutoTokenizer.from_pretrained(model_name)
-                        AutoModelForSeq2SeqLM.from_pretrained(model_name)
-                    else:
-                        from transformers import AutoTokenizer, AutoModel
-                        AutoTokenizer.from_pretrained(model_name)
-                        AutoModel.from_pretrained(model_name)
-                    
+                    cache.download_translation_model(model_name)
                     downloaded += 1
                     logger.info(f"Downloaded: {model_name}")
-                    
                 except Exception as e:
                     logger.error(f"Failed to download {model_name}: {e}")
                     failed.append(model_name)
-            
-            # Also download Whisper model
+
+            # Download Whisper model
             self._event_queue.put(("status", "Downloading Whisper (small)..."))
             try:
-                from faster_whisper import WhisperModel
-                WhisperModel("small", device="cpu", compute_type="float32")
+                cache.download_whisper_model("small")
                 downloaded += 1
             except Exception as e:
                 logger.error(f"Failed to download Whisper: {e}")
                 failed.append("whisper-small")
-            
+
             if failed:
-                msg = f"Downloaded {downloaded} models. Failed: {', '.join(failed)}"
+                msg = (
+                    f"Downloaded {downloaded} models. Failed ({len(failed)}): "
+                    + ", ".join(failed)
+                    + "\n\nTip: If downloads fail due to network issues, set "
+                    "HF_ENDPOINT=https://hf-mirror.com and try again."
+                )
             else:
                 msg = f"All {downloaded} models downloaded successfully!"
-            
+
             self._event_queue.put(("status", msg))
             self._event_queue.put(("download_done", None))
-            
+
         except Exception as e:
             logger.error(f"Download error: {e}")
             self._event_queue.put(("error", f"Download error: {e}"))
@@ -1086,26 +1083,21 @@ class CopyTalkerGUI:
                     elif target == "whisper":
                         cache.download_whisper_model("small")
                     elif target == "translation":
-                        # Download all Helsinki + NLLB models
+                        # Download all Helsinki + NLLB models via ModelCache
                         from copytalker.core.constants import DEFAULT_TRANSLATION_MODELS
                         for key, models in DEFAULT_TRANSLATION_MODELS.items():
                             if key == "multilingual":
                                 continue
                             for m in models:
-                                if m.startswith("Helsinki-NLP/"):
-                                    self._event_queue.put(("dl_progress", f"Downloading {m}..."))
-                                    try:
-                                        from transformers import MarianTokenizer, MarianMTModel
-                                        MarianTokenizer.from_pretrained(m)
-                                        MarianMTModel.from_pretrained(m)
-                                    except Exception as e2:
-                                        failed.append(f"{m}: {e2}")
+                                self._event_queue.put(("dl_progress", f"Downloading {m}..."))
+                                try:
+                                    cache.download_translation_model(m)
+                                except Exception as e2:
+                                    failed.append(f"{m}: {e2}")
                         # NLLB
                         self._event_queue.put(("dl_progress", "Downloading NLLB..."))
                         try:
-                            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-                            AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
-                            AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M")
+                            cache.download_translation_model("facebook/nllb-200-distilled-600M")
                         except Exception as e2:
                             failed.append(f"nllb: {e2}")
                 except Exception as e:
@@ -1113,7 +1105,10 @@ class CopyTalkerGUI:
                     failed.append(f"{target}: {e}")
 
             if failed:
-                msg = "Some downloads failed:\n" + "\n".join(failed)
+                msg = (
+                    "Some downloads failed:\n" + "\n".join(failed)
+                    + "\n\nTip: If network issues, set env HF_ENDPOINT=https://hf-mirror.com"
+                )
                 self._event_queue.put(("error", msg))
             else:
                 self._event_queue.put(("status", "Download complete!"))
