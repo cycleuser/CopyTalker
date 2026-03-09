@@ -1,34 +1,55 @@
+# =============================================================================
+# CopyTalker - Core Dependencies
+# https://github.com/cycleuser/CopyTalker
+# =============================================================================
+#
+# This file lists the core dependencies matching pyproject.toml.
+# For optional dependencies, use: pip install copytalker[full], copytalker[cjk], etc.
+
+# ── Core dependencies ─────────────────────────────────────────────────────────
 faster-whisper>=0.6.0
-transformers>=4.21.0
-torch>=1.12.0
+transformers>=4.30.0
+torch>=2.0.0
 pyaudio>=0.2.11
-webrtcvad>=2.0.10
-sounddevice>=0.4.4
-librosa>=0.9.1
-langdetect>=1.0.9
-pyttsx3>=2.90
+webrtcvad-wheels>=2.0.10
+numpy>=1.24.0
+huggingface-hub>=0.16.0
+pyyaml>=6.0
+tqdm>=4.65.0
 sentencepiece>=0.1.96
-edge-tts>=6.1.0
-ffmpeg-python>=0.2.0
-piper-tts>=1.0.0
-kokoro>=0.1.0
-ordered-set>=4.1.0
-cn2an>=0.5.17
-pypinyin>=0.44.0
-pypinyin-dict>=0.1.0
-jieba>=0.42.1
-fugashi>=1.1.0
-jaconv>=0.3.4
-mojimoji>=0.0.12
-fugashi[unidic]>=1.1.0
-unidic-lite>=1.0.0
-unidic>=1.0.0
-huggingface-hub>=0.8.1
-soundfile>=0.12.0
-# IndexTTS (install separately: pip install indextts)
-# indextts
-# Fish-Speech (install separately: see https://github.com/fishaudio/fish-speech)
-# fish-speech
-# Fish-Speech cloud API SDK
-fish-audio-sdk>=0.1.0
-httpx>=0.24.0
+
+# ── Full TTS engines (optional) ──────────────────────────────────────────────
+# Install with: pip install copytalker[full]
+# Or uncomment the lines below:
+# kokoro>=0.1.0
+# edge-tts>=6.1.0
+# pyttsx3>=2.90
+# sounddevice>=0.4.4
+# librosa>=0.9.1
+
+# ── CJK language support (optional) ──────────────────────────────────────────
+# Install with: pip install copytalker[cjk]
+# Or uncomment the lines below:
+# cn2an>=0.5.17
+# pypinyin>=0.44.0
+# pypinyin-dict>=0.1.0
+# jieba>=0.42.1
+# fugashi>=1.1.0
+# jaconv>=0.3.4
+# mojimoji>=0.0.12
+# unidic-lite>=1.0.0
+
+# ── IndexTTS voice cloning (optional) ────────────────────────────────────────
+# Install with: pip install copytalker[indextts]
+# Or uncomment the lines below:
+# pynini>=2.1.5
+# soundfile>=0.12.0
+
+# ── Fish-Speech (optional) ───────────────────────────────────────────────────
+# Install with: pip install copytalker[fish-speech]
+# soundfile>=0.12.0
+
+# ── Fish-Speech cloud API (optional) ─────────────────────────────────────────
+# Install with: pip install copytalker[fish-speech-api]
+# fish-audio-sdk>=0.1.0
+# httpx>=0.24.0

@@ -65,7 +65,12 @@ CopyTalker requires FFmpeg and PortAudio for audio processing:
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt install ffmpeg portaudio19-dev
+sudo apt install ffmpeg portaudio19-dev python3-dev
+```
+
+**Fedora:**
+```bash
+sudo dnf install ffmpeg portaudio-devel python3-devel
 ```
 
 **macOS:**
@@ -336,8 +341,38 @@ mypy src/copytalker
 - FFmpeg
 - PortAudio (for PyAudio)
 - Audio input/output capabilities
+- PyTorch 2.0+ (on macOS: CPU or MPS; on Linux/Windows: CPU or CUDA)
 
 See [pyproject.toml](pyproject.toml) for detailed Python package dependencies.
+
+### macOS Installation Notes
+
+CopyTalker works on macOS (both Intel and Apple Silicon). On macOS, CUDA is not available, so PyTorch uses CPU or MPS (Apple Silicon) for inference.
+
+If you encounter torch/numpy conflicts on macOS, install PyTorch first:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install copytalker
+```
+
+If PyAudio fails to install on macOS, set the compiler flags:
+
+```bash
+LDFLAGS="-L$(brew --prefix portaudio)/lib" CFLAGS="-I$(brew --prefix portaudio)/include" pip install pyaudio
+```
+
+### Linux Installation Notes
+
+On Linux, PyAudio is compiled from source and requires the PortAudio development headers and a C compiler. Install them before running `pip install`:
+
+```bash
+# Ubuntu/Debian
+sudo apt install ffmpeg portaudio19-dev python3-dev build-essential
+
+# Fedora
+sudo dnf install ffmpeg portaudio-devel python3-devel gcc
+```
 
 ## Agent Integration (OpenAI Function Calling)
 
