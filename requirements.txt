@@ -10,9 +10,9 @@
 faster-whisper>=0.6.0
 transformers>=4.30.0
 torch>=2.0.0
-pyaudio>=0.2.11
+sounddevice>=0.4.4
 webrtcvad-wheels>=2.0.10
-numpy>=1.24.0
+numpy>=1.26.0
 huggingface-hub>=0.16.0
 pyyaml>=6.0
 tqdm>=4.65.0
@@ -24,8 +24,12 @@ sentencepiece>=0.1.96
 # kokoro>=0.1.0
 # edge-tts>=6.1.0
 # pyttsx3>=2.90
-# sounddevice>=0.4.4
 # librosa>=0.9.1
+
+# ── PyAudio backend (optional, requires system PortAudio) ────────────────────
+# Install with: pip install copytalker[pyaudio]
+# Or uncomment the line below:
+# pyaudio>=0.2.11
 
 # ── CJK language support (optional) ──────────────────────────────────────────
 # Install with: pip install copytalker[cjk]

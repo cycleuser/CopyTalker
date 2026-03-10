@@ -1,18 +1,19 @@
 """
 Audio recording utilities for voice cloning reference audio.
 
-Provides simple recording to WAV file using PyAudio.
+Provides simple recording to WAV file.
 
-This module uses lazy imports to avoid triggering pyaudio/webrtcvad
+Uses ``sounddevice`` by default.  Falls back to ``pyaudio`` if available.
+
+This module uses lazy imports to avoid triggering heavy dependencies
 at import time, which allows it to be imported even when those
-heavy dependencies are not installed.
+dependencies are not installed.
 """
 
 import logging
 import threading
 import time
 import wave
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -91,14 +92,76 @@ class VoiceRecorder:
         self._is_recording = False
         logger.info(f"Voice recording stopped ({self._duration:.1f}s)")
 
+    # ------------------------------------------------------------------
+    # Backend selection
+    # ------------------------------------------------------------------
+
     def _record_loop(self) -> None:
-        """Capture audio frames from the microphone."""
+        """Pick the best available backend and record."""
         try:
-            import pyaudio
+            import sounddevice  # noqa: F401
+
+            self._record_loop_sd()
         except ImportError:
-            logger.error("pyaudio is required for recording")
+            try:
+                import pyaudio  # noqa: F401
+
+                self._record_loop_pa()
+            except ImportError:
+                logger.error(
+                    "Neither sounddevice nor pyaudio is installed. "
+                    "Install one of them: pip install sounddevice"
+                )
+                self._is_recording = False
+
+    # ------------------------------------------------------------------
+    # sounddevice backend
+    # ------------------------------------------------------------------
+
+    def _record_loop_sd(self) -> None:
+        """Record using *sounddevice*."""
+        import queue as _queue
+
+        import sounddevice as sd
+
+        frame_q: _queue.Queue[bytes] = _queue.Queue()
+
+        def _callback(indata, frames, time_info, status):  # noqa: ARG001
+            int16 = (indata[:, 0] * 32768).clip(-32768, 32767).astype(np.int16)
+            frame_q.put(int16.tobytes())
+
+        stream = sd.InputStream(
+            samplerate=self._sample_rate,
+            channels=self._channels,
+            dtype="float32",
+            blocksize=self._chunk_size,
+            callback=_callback,
+        )
+
+        start_time = time.time()
+        stream.start()
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    data = frame_q.get(timeout=0.5)
+                    self._frames.append(data)
+                    self._duration = time.time() - start_time
+                except _queue.Empty:
+                    self._duration = time.time() - start_time
+        except Exception as e:
+            logger.error(f"Recording error (sounddevice): {e}")
+        finally:
+            stream.stop()
+            stream.close()
             self._is_recording = False
-            return
+
+    # ------------------------------------------------------------------
+    # pyaudio fallback
+    # ------------------------------------------------------------------
+
+    def _record_loop_pa(self) -> None:
+        """Record using *pyaudio*."""
+        import pyaudio
 
         pa = None
         stream = None
@@ -138,6 +201,10 @@ class VoiceRecorder:
                 except Exception:
                     pass
             self._is_recording = False
+
+    # ------------------------------------------------------------------
+    # Shared helpers
+    # ------------------------------------------------------------------
 
     def save(self, path: Optional[str] = None, name: Optional[str] = None) -> str:
         """
@@ -189,7 +256,7 @@ class VoiceRecorder:
             return 0.0
         # Use the last frame
         last = np.frombuffer(self._frames[-1], dtype=np.int16).astype(np.float32) / 32768.0
-        return float(np.sqrt(np.mean(last ** 2)))
+        return float(np.sqrt(np.mean(last**2)))
 
     def clear(self) -> None:
         """Discard the current recording."""

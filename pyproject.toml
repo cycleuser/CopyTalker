@@ -63,9 +63,9 @@ dependencies = [
     "faster-whisper>=0.6.0",
     "transformers>=4.30.0",
     "torch>=2.0.0",
-    "pyaudio>=0.2.11",
+    "sounddevice>=0.4.4",
     "webrtcvad-wheels>=2.0.10",
-    "numpy>=1.24.0",
+    "numpy>=1.26.0",
     "huggingface-hub>=0.16.0",
     "pyyaml>=6.0",
     "tqdm>=4.65.0",
@@ -78,8 +78,12 @@ full = [
     "kokoro>=0.1.0",
     "edge-tts>=6.1.0",
     "pyttsx3>=2.90",
-    "sounddevice>=0.4.4",
     "librosa>=0.9.1",
+]
+
+# PyAudio backend (requires system PortAudio; use only if sounddevice is not suitable)
+pyaudio = [
+    "pyaudio>=0.2.11",
 ]
 
 # IndexTTS voice cloning engine
@@ -134,7 +138,7 @@ docs = [
 
 # All optional dependencies
 all = [
-    "copytalker[full,indextts,fish-speech,fish-speech-api,cjk,dev,docs]",
+    "copytalker[full,pyaudio,indextts,fish-speech,fish-speech-api,cjk,dev,docs]",
 ]
 
 [project.urls]
