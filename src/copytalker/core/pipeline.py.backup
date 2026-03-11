@@ -8,8 +8,6 @@ import threading
 import time
 from typing import Optional, Callable, Dict, Any
 
-import numpy as np
-
 from copytalker.core.config import AppConfig
 from copytalker.core.constants import AUTO_DETECT_CODE, normalize_language_code
 from copytalker.core.exceptions import PipelineError
@@ -120,13 +118,8 @@ class TranslationPipeline:
         
         logger.info("All components initialized")
     
-    def start(self, capture_mode: str = "vad") -> None:
-        """Start the translation pipeline.
-
-        Args:
-            capture_mode: "vad" for continuous VAD capture (default),
-                          "ptt" to skip auto-capture (audio injected externally).
-        """
+    def start(self) -> None:
+        """Start the translation pipeline."""
         if self._is_running:
             logger.warning("Pipeline is already running")
             return
@@ -135,11 +128,8 @@ class TranslationPipeline:
         
         self._stop_event.clear()
         
-        # Start audio capture only in VAD mode
-        if capture_mode == "vad":
-            self._audio_capturer.start()
-        else:
-            logger.info("PTT mode: audio capture managed externally")
+        # Start audio capture
+        self._audio_capturer.start()
         
         # Start processing threads
         self._threads["stt"] = threading.Thread(
@@ -164,20 +154,6 @@ class TranslationPipeline:
         self._is_running = True
         self._emit_event("status", "Pipeline started - listening...")
         logger.info("Translation pipeline started")
-    
-    def inject_audio_segment(self, audio: np.ndarray) -> None:
-        """Inject an audio segment directly into the STT queue.
-
-        Used in PTT mode where audio capture is managed externally.
-
-        Args:
-            audio: Float32 numpy array normalised to [-1, 1].
-        """
-        if self._audio_capturer is None:
-            logger.warning("Cannot inject audio: capturer not initialised")
-            return
-        self._audio_capturer._audio_queue.put(audio)
-        logger.debug(f"Injected audio segment: {len(audio)} samples")
     
     def stop(self, timeout: float = 5.0) -> None:
         """
@@ -316,12 +292,9 @@ class TranslationPipeline:
                     "sample_rate": sample_rate,
                 })
                 
-               # Echo cancellation: set flag during TTS playback
-                self._audio_capturer._is_playing_back = True
                 # Play audio (blocks during playback)
                 # Note: ThreadSafeAudioPlayer already handles locking internally
                 self._audio_player.play(audio, sample_rate, blocking=True)
-                self._audio_capturer._is_playing_back = False  # Echo cancellation: clear flag
                 
             except Exception as e:
                 logger.error(f"TTS error: {e}")

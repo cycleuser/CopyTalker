@@ -153,9 +153,9 @@ class EdgeTTS(TTSEngineBase):
             raise TTSError(f"Edge TTS synthesis failed: {e}") from e
     
     def _decode_mp3(self, mp3_data: bytes) -> AudioArray:
-        """Decode MP3 data to numpy array."""
+        """Decode MP3 data to numpy array, with multiple fallback decoders."""
+        # Method 1: pydub (needs ffmpeg binary)
         try:
-            # Try using pydub
             from pydub import AudioSegment
             
             audio = AudioSegment.from_mp3(io.BytesIO(mp3_data))
@@ -171,19 +171,60 @@ class EdgeTTS(TTSEngineBase):
             
             return samples
             
-        except ImportError:
-            # Fallback: try librosa
+        except Exception as e:
+            logger.debug(f"pydub MP3 decode failed: {e}")
+        
+        # Method 2: librosa
+        try:
+            import librosa
+            
+            audio, sr = librosa.load(io.BytesIO(mp3_data), sr=self.DEFAULT_SAMPLE_RATE)
+            return audio.astype(np.float32)
+            
+        except Exception as e:
+            logger.debug(f"librosa MP3 decode failed: {e}")
+        
+        # Method 3: ffmpeg subprocess (direct, works if ffmpeg binary is installed)
+        try:
+            import subprocess
+            import tempfile
+            import os
+            
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as mp3_f:
+                mp3_f.write(mp3_data)
+                mp3_path = mp3_f.name
+            
+            wav_path = mp3_path.replace('.mp3', '.wav')
+            
             try:
-                import librosa
-                
-                audio, sr = librosa.load(io.BytesIO(mp3_data), sr=self.DEFAULT_SAMPLE_RATE)
-                return audio.astype(np.float32)
-                
-            except ImportError:
-                raise TTSError(
-                    "MP3 decoding requires 'pydub' or 'librosa'. "
-                    "Install with: pip install pydub librosa"
+                subprocess.run(
+                    ['ffmpeg', '-y', '-i', mp3_path, '-ar', str(self.DEFAULT_SAMPLE_RATE),
+                     '-ac', '1', '-f', 'wav', wav_path],
+                    capture_output=True, timeout=30, check=True,
                 )
+                
+                import wave
+                with wave.open(wav_path, 'rb') as wf:
+                    raw = wf.readframes(wf.getnframes())
+                    samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+                
+                return samples
+            finally:
+                for p in (mp3_path, wav_path):
+                    try:
+                        os.unlink(p)
+                    except OSError:
+                        pass
+                        
+        except Exception as e:
+            logger.debug(f"ffmpeg subprocess MP3 decode failed: {e}")
+        
+        raise TTSError(
+            "MP3 decoding failed. Install ffmpeg for audio processing:\n"
+            "  macOS:  brew install ffmpeg\n"
+            "  Linux:  sudo apt install ffmpeg\n"
+            "  Or install pydub: pip install pydub"
+        )
     
     def get_available_voices(self, language: str) -> List[str]:
         """Get available Edge TTS voices for a language."""

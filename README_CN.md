@@ -11,10 +11,25 @@
 - **实时语音翻译**：即时将口语翻译成另一种语言并语音输出
 - **多语言支持**：支持9种语言之间的翻译，包括英语、中文、日语、韩语、法语、德语、西班牙语、俄语和阿拉伯语
 - **多种TTS引擎**：Kokoro（高质量神经网络TTS）、Edge TTS（云端）、pyttsx3（离线）
+- **跨平台支持**：完整支持 macOS (Apple Silicon/Intel)、Linux 和 Windows
 - **跨模态转换**：从语音到文本再到翻译语音的无缝转换
 - **异步处理**：高效的并行处理，延迟最小化
 - **简单GUI**：易于使用的Tkinter图形界面
 - **离线功能**：可下载模型以供离线使用
+
+## 平台兼容性
+
+| 组件 | macOS (Apple Silicon) | macOS (Intel) | Linux | Windows |
+|------|----------------------|---------------|-------|---------|
+| 语音识别 (faster-whisper) | CPU (float32) | CPU (float32) | CPU / CUDA | CPU / CUDA |
+| 翻译 (transformers) | MPS 加速 | CPU | CPU / CUDA | CPU / CUDA |
+| TTS - Edge TTS | 支持 | 支持 | 支持 | 支持 |
+| TTS - pyttsx3 | 支持 (NSSpeech) | 支持 (NSSpeech) | 支持 (espeak) | 支持 (SAPI) |
+| TTS - Kokoro | MPS 加速 | CPU | CPU / CUDA | CPU / CUDA |
+| 音频输入/输出 | sounddevice | sounddevice | sounddevice | sounddevice |
+
+> **注意：** faster-whisper 使用 ctranslate2，不支持 Apple MPS。macOS 上 STT 自动使用 CPU。
+> 翻译模型和 Kokoro TTS 可以利用 Apple Silicon 的 MPS 加速。
 
 ## 支持的语言
 
@@ -34,21 +49,22 @@
 
 ### 从 PyPI 安装（推荐）
 
+基础安装已包含 Edge TTS 和 pyttsx3，TTS 开箱即用：
+
 ```bash
 pip install copytalker
 ```
 
+> **Python 3.13 用户：** `audioop-lts` 会自动安装以兼容 pydub。
+
 ### 完整安装
 
 ```bash
-# 安装所有TTS引擎
+# 安装 Kokoro 高质量 TTS 引擎
 pip install copytalker[full]
 
-# 包含CJK语言支持
+# 包含CJK语言支持（中文、日文、韩文）
 pip install copytalker[full,cjk]
-
-# 开发安装
-pip install copytalker[dev]
 ```
 
 ### 从源码安装
@@ -59,22 +75,237 @@ cd CopyTalker
 pip install -e .[full]
 ```
 
-### 系统依赖
+### 一键安装脚本（推荐）
 
-CopyTalker 需要 FFmpeg 和 PortAudio 进行音频处理：
+为了简化安装过程，CopyTalker 提供了自动安装脚本：
+
+**macOS/Linux:**
+```bash
+# 下载并运行安装脚本
+curl -fsSL https://raw.githubusercontent.com/cycleuser/CopyTalker/main/install.sh -o install.sh
+chmod +x install.sh
+./install.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+# 下载并运行安装脚本
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/cycleuser/CopyTalker/main/install.ps1 -OutFile install.ps1
+.\install.ps1
+```
+
+安装脚本会自动：
+- 检测操作系统和包管理器
+- 安装所有系统级依赖（FFmpeg、PortAudio 等）
+- 创建虚拟环境（可选）
+- 安装 CopyTalker 及所有 TTS 引擎
+- 验证安装并运行诊断
+
+### 手动安装系统依赖
+
+CopyTalker 需要 FFmpeg 和 PortAudio 进行音频处理，不同 TTS 引擎还需要额外的依赖：
+
+#### 基础音频依赖
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt install ffmpeg portaudio19-dev
+sudo apt update
+sudo apt install -y ffmpeg portaudio19-dev libsndfile1
 ```
 
-**macOS:**
+**macOS (使用 Homebrew):**
 ```bash
-brew install ffmpeg portaudio
+# 首先安装 Homebrew（如果尚未安装）
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 安装音频依赖
+brew install ffmpeg portaudio libsndfile
 ```
 
 **Windows:**
-从 https://ffmpeg.org/download.html 下载 FFmpeg 并添加到 PATH。
+- 从 https://ffmpeg.org/download.html 下载 FFmpeg 并添加到 PATH
+- PyAudio 已包含预编译二进制文件（通过 pip 安装）
+
+#### TTS 引擎特定依赖
+
+CopyTalker 支持多种 TTS 引擎，每种引擎有不同的依赖要求：
+
+##### 1. Kokoro TTS（推荐 - 高质量神经网络）
+
+Kokoro 是默认的高质量 TTS 引擎，需要额外的语言处理依赖：
+
+**macOS:**
+```bash
+# 安装 CJK（中日韩）语言处理依赖
+pip install cn2an pypinyin pypinyin-dict jieba
+pip install fugashi jaconv mojimoji unidic-lite
+
+# 或者使用完整安装
+pip install copytalker[full,cjk]
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+# 安装系统级依赖
+sudo apt install -y libmecab-dev mecab mecab-ipadic-utf8
+
+# 安装 Python 依赖
+pip install cn2an pypinyin pypinyin-dict jieba
+pip install fugashi jaconv mojimoji unidic-lite mecab-python3
+
+# 或者使用完整安装
+pip install copytalker[full,cjk]
+```
+
+##### 2. Edge TTS（云端 TTS - 需要网络）
+
+Edge TTS 是微软的云端 TTS 服务，无需本地模型但需要网络连接：
+
+```bash
+# 安装 edge-tts
+pip install edge-tts>=6.1.0
+
+# 测试 Edge TTS 是否可用
+edge-tts --list-voices
+```
+
+**注意：** Edge TTS 需要稳定的互联网连接。如果显示 "Edge TTS is not available"，请检查：
+1. 网络连接是否正常
+2. 是否正确安装了 `edge-tts` 包
+3. 是否可以访问微软 Azure 服务
+
+##### 3. pyttsx3（离线 TTS - 备用方案）
+
+pyttsx3 是完全离线的 TTS 引擎，作为备用方案：
+
+**macOS:**
+```bash
+# macOS 使用内置 NSSpeechSynthesizer，无需额外依赖
+pip install pyttsx3
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+# 需要安装 eSpeak NG
+sudo apt install -y espeak-ng libespeak1
+
+# 安装 Python 绑定
+pip install pyttsx3
+```
+
+##### 4. IndexTTS（语音克隆）
+
+IndexTTS 支持情感语音克隆：
+
+**macOS & Linux:**
+```bash
+# 安装 Pinyin 处理依赖（中文必需）
+pip install pynini soundfile
+
+# Linux 额外需要
+sudo apt install -y libpynini-dev  # 如果可用
+```
+
+##### 5. Fish-Speech（高级语音克隆）
+
+Fish-Speech 提供 50+ 种情感标签：
+
+```bash
+# 安装依赖
+pip install soundfile
+
+# 或使用云 API
+pip install fish-audio-sdk httpx
+```
+
+#### 完整安装推荐
+
+**macOS 完整安装步骤：**
+```bash
+# 1. 安装系统依赖
+brew install ffmpeg portaudio libsndfile
+
+# 2. 安装 CopyTalker 及所有功能
+pip install copytalker[full,cjk,indextts,fish-speech]
+
+# 3. 验证安装
+copytalker --help
+copytalker --gui
+```
+
+**Linux (Ubuntu/Debian) 完整安装步骤：**
+```bash
+# 1. 安装系统依赖
+sudo apt update
+sudo apt install -y ffmpeg portaudio19-dev libsndfile1 \
+                    libmecab-dev mecab mecab-ipadic-utf8 \
+                    espeak-ng libespeak1
+
+# 2. 安装 CopyTalker 及所有功能
+pip install copytalker[full,cjk,indextts,fish-speech]
+
+# 3. 验证安装
+copytalker --help
+copytalker --gui
+```
+
+#### 故障排查
+
+**问题 1: GUI 提示 "Edge TTS is not available"**
+
+解决方法：
+```bash
+# 检查是否正确安装 edge-tts
+pip show edge-tts
+
+# 如果没有安装，执行
+pip install edge-tts>=6.1.0
+
+# 测试 edge-tts 命令行工具
+edge-tts --list-voices
+
+# 如果无法列出声音，检查网络连接
+ping azure.microsoft.com
+```
+
+**问题 2: GUI 提示 "No TTS engine available"**
+
+解决方法：
+```bash
+# 安装所有 TTS 引擎
+pip install kokoro edge-tts pyttsx3
+
+# 或者重新安装完整包
+pip install copytalker[full]
+
+# 重启 GUI
+copytalker --gui
+```
+
+**问题 3: Kokoro TTS 无法生成中文/日文语音**
+
+解决方法：
+```bash
+# 安装 CJK 语言支持
+pip install copytalker[cjk]
+
+# 具体依赖
+pip install cn2an pypinyin jieba        # 中文
+pip install fugashi jaconv unidic-lite  # 日文
+```
+
+**问题 4: macOS 上 PyAudio 安装失败**
+
+解决方法：
+```bash
+# CopyTalker 默认使用 sounddevice（预编译二进制），不需要 PyAudio
+# 如果必须使用 PyAudio：
+brew install portaudio
+pip install pyaudio
+
+# 或者继续使用默认的 sounddevice（推荐）
+pip install sounddevice
+```
 
 ## 快速开始
 

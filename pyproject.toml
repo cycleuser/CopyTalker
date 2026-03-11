@@ -70,40 +70,27 @@ dependencies = [
     "pyyaml>=6.0",
     "tqdm>=4.65.0",
     "sentencepiece>=0.1.96",
+    "pydub>=0.25.0",
+    "soundfile>=0.12.0",
+    # TTS engines - fast to install
+    "edge-tts>=6.1.0",
+    "pyttsx3>=2.90",
+    "fish-audio-sdk>=0.1.0",
+    "httpx>=0.24.0",
+    # GUI
+    "PySide6>=6.5.0",
+    # Python 3.13 removed audioop; pydub needs this shim
+    "audioop-lts>=0.2.1; python_version>='3.13'",
 ]
 
 [project.optional-dependencies]
-# Full installation with all TTS engines
-full = [
+# Kokoro high-quality neural TTS (requires model download)
+kokoro = [
     "kokoro>=0.1.0",
-    "edge-tts>=6.1.0",
-    "pyttsx3>=2.90",
     "librosa>=0.9.1",
 ]
 
-# PyAudio backend (requires system PortAudio; use only if sounddevice is not suitable)
-pyaudio = [
-    "pyaudio>=0.2.11",
-]
-
-# IndexTTS voice cloning engine
-indextts = [
-    "pynini>=2.1.5",
-    "soundfile>=0.12.0",
-]
-
-# Fish-Speech TTS engine (local inference)
-fish-speech = [
-    "soundfile>=0.12.0",
-]
-
-# Fish-Speech cloud API
-fish-speech-api = [
-    "fish-audio-sdk>=0.1.0",
-    "httpx>=0.24.0",
-]
-
-# CJK language support (Chinese, Japanese, Korean)
+# CJK language support (Chinese, Japanese, Korean) - recommended for Asian languages
 cjk = [
     "cn2an>=0.5.17",
     "pypinyin>=0.44.0",
@@ -113,6 +100,16 @@ cjk = [
     "jaconv>=0.3.4",
     "mojimoji>=0.0.12",
     "unidic-lite>=1.0.0",
+]
+
+# IndexTTS voice cloning engine (not available on macOS)
+indextts = [
+    "pynini>=2.1.5",
+]
+
+# PyAudio backend (alternative to sounddevice)
+pyaudio = [
+    "pyaudio>=0.2.11",
 ]
 
 # Development dependencies
@@ -136,9 +133,14 @@ docs = [
     "sphinx-autodoc-typehints>=1.23.0",
 ]
 
-# All optional dependencies
+# Complete installation with Kokoro and CJK support
+complete = [
+    "copytalker[kokoro,cjk]",
+]
+
+# All optional dependencies including development
 all = [
-    "copytalker[full,pyaudio,indextts,fish-speech,fish-speech-api,cjk,dev,docs]",
+    "copytalker[kokoro,cjk,indextts,pyaudio,dev,docs]",
 ]
 
 [project.urls]
@@ -150,11 +152,11 @@ Changelog = "https://github.com/cycleuser/CopyTalker/blob/main/CHANGELOG.md"
 
 [project.scripts]
 copytalker = "copytalker.cli.main:main"
-copytalker-gui = "copytalker.gui.main_window:main"
+copytalker-gui = "copytalker.gui.app:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["copytalker", "copytalker.core", "copytalker.audio", "copytalker.speech", "copytalker.translation", "copytalker.tts", "copytalker.gui", "copytalker.cli", "copytalker.utils"]
+packages = ["copytalker", "copytalker.core", "copytalker.audio", "copytalker.speech", "copytalker.translation", "copytalker.tts", "copytalker.gui", "copytalker.gui.views", "copytalker.gui.widgets", "copytalker.gui.controllers", "copytalker.gui.qt", "copytalker.gui.qt.views", "copytalker.gui.qt.widgets", "copytalker.gui.qt.controllers", "copytalker.cli", "copytalker.utils"]
 include-package-data = true
 
 [tool.setuptools.dynamic]

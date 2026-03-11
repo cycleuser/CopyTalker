@@ -650,11 +650,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Handle --gui flag
     if args.gui:
         try:
-            from copytalker.gui.main_window import main as gui_main
-            return gui_main()
-        except ImportError as e:
-            print(f"GUI not available: {e}", file=sys.stderr)
-            return 1
+            # Try Qt version first
+            from copytalker.gui.qt.app import main as qt_gui_main
+            return qt_gui_main()
+        except ImportError:
+            try:
+                # Fallback to tkinter version
+                from copytalker.gui.main_window import main as gui_main
+                return gui_main()
+            except ImportError as e:
+                print(f"GUI not available: {e}", file=sys.stderr)
+                return 1
     
     # Handle commands
     if args.command == "translate":

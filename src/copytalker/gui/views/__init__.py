@@ -1,0 +1,1 @@
+"""CopyTalker GUI views package."""

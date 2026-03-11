@@ -111,8 +111,10 @@ def get_tts_engine(
     }
     
     if engine_name == "auto":
-        # Try engines in order of preference
-        for name in ["kokoro", "indextts", "fish-speech", "edge-tts", "pyttsx3"]:
+        # Try engines in order of preference:
+        # edge-tts and pyttsx3 first (included in base install, work out of the box)
+        # then kokoro and others (require extra install / model downloads)
+        for name in ["edge-tts", "pyttsx3", "kokoro", "indextts", "fish-speech"]:
             try:
                 engine = engines[name](config)
                 if engine.is_available:

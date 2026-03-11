@@ -1,0 +1,81 @@
+"""Configuration management for CopyTalker."""
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional, Dict, Any
+import logging
+
+from copytalker.core.constants import (
+    DEFAULT_SAMPLE_RATE, DEFAULT_FRAME_DURATION_MS, DEFAULT_VAD_AGGRESSIVENESS,
+    DEFAULT_SILENCE_THRESHOLD_S, DEFAULT_AUDIO_BUFFER_SIZE, AUTO_DETECT_CODE,
+)
+
+logger = logging.getLogger(__name__)
+
+def get_default_cache_dir() -> Path:
+   env_cache = os.environ.get('COPYTALKER_CACHE_DIR')
+   return Path(env_cache) if env_cache else Path.home() / '.cache' / 'copytalker'
+
+def get_default_config_path() -> Path:
+   env_config = os.environ.get('COPYTALKER_CONFIG')
+   return Path(env_config) if env_config else Path.home() / '.config' / 'copytalker' / 'config.yaml'
+
+def get_device() -> str:
+    """Detect best available device with support for CUDA, MPS (Apple Silicon), and ROCm (AMD)."""
+   env_device = os.environ.get('COPYTALKER_DEVICE', 'auto')
+   if env_device.lower() == 'cpu':
+       return 'cpu'
+   try:
+       import torch
+       cuda_available = torch.cuda.is_available()
+        mps_available = hasattr(torch.backends, 'mps') and torch.backends.mps.is_available()
+        rocm_available = False
+       try:
+           if hasattr(torch.version, 'hip') and torch.version.hip is not None:
+                rocm_available = True
+            elif os.environ.get('ROCM_VISIBLE_DEVICES'):
+                rocm_available = True
+       except Exception:
+           pass
+   except ImportError:
+       cuda_available = mps_available = rocm_available = False
+   if env_device.lower() == 'cuda' and cuda_available:
+       return 'cuda'
+    elif env_device.lower() == 'mps' and mps_available:
+       return 'mps'
+    elif env_device.lower() == 'rocm' and rocm_available:
+       return 'rocm'
+    elif env_device.lower() == 'auto':
+       if rocm_available: return 'rocm'
+        elif cuda_available: return 'cuda'
+        elif mps_available: return 'mps'
+        else: return 'cpu'
+   return 'cpu'
+
+def list_available_devices() -> list[dict[str, str | bool]]:
+    """List all available compute devices."""
+    devices = [{'type': 'cpu', 'available': True, 'info': 'CPU'}]
+   try:
+       import torch
+       if torch.cuda.is_available():
+            devices.append({'type': 'cuda', 'available': True, 'info': f'CUDA: {torch.cuda.get_device_name(0)}'})
+        else:
+            devices.append({'type': 'cuda', 'available': False, 'info': 'CUDA not available'})
+       if hasattr(torch.backends, 'mps'):
+            mps_avail = torch.backends.mps.is_available()
+            devices.append({'type': 'mps', 'available': mps_avail, 'info': 'MPS (Apple Silicon)' if mps_avail else 'MPS N/A'})
+        rocm_avail = False
+        rocm_info = 'ROCm not available'
+       try:
+           if hasattr(torch.version, 'hip') and torch.version.hip is not None:
+                rocm_avail, rocm_info = True, f'ROCm: {torch.version.hip}'
+            elif os.environ.get('ROCM_VISIBLE_DEVICES'):
+                rocm_avail, rocm_info = True, 'ROCm (env var)'
+       except Exception as e:
+            rocm_info = f'ROCm error: {e}'
+        devices.append({'type': 'rocm', 'available': rocm_avail, 'info': rocm_info})
+   except ImportError:
+        for t in ['cuda', 'mps', 'rocm']:
+            devices.append({'type': t, 'available': False, 'info': 'PyTorch not installed'})
+   return devices

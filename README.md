@@ -11,10 +11,25 @@
 - **Real-time Speech Translation**: Instantly translate spoken language to another language with voice output
 - **Multi-language Support**: Supports translation between 9 languages including English, Chinese, Japanese, Korean, French, German, Spanish, Russian, and Arabic
 - **Multiple TTS Engines**: Kokoro (high-quality neural TTS), Edge TTS (cloud-based), pyttsx3 (offline)
+- **Cross-platform**: Full support for macOS (Apple Silicon/Intel), Linux, and Windows
 - **Cross-modal Conversion**: Seamless conversion from speech to text to translated speech
 - **Asynchronous Processing**: Efficient parallel processing with minimal latency
 - **Simple GUI**: Easy-to-use Tkinter graphical interface
 - **Offline Capabilities**: Download models for offline usage
+
+## Platform Compatibility
+
+| Component | macOS (Apple Silicon) | macOS (Intel) | Linux | Windows |
+|-----------|----------------------|---------------|-------|---------|
+| STT (faster-whisper) | CPU (float32) | CPU (float32) | CPU / CUDA | CPU / CUDA |
+| Translation (transformers) | MPS accelerated | CPU | CPU / CUDA | CPU / CUDA |
+| TTS - Edge TTS | Supported | Supported | Supported | Supported |
+| TTS - pyttsx3 | Supported (NSSpeech) | Supported (NSSpeech) | Supported (espeak) | Supported (SAPI) |
+| TTS - Kokoro | MPS accelerated | CPU | CPU / CUDA | CPU / CUDA |
+| Audio I/O | sounddevice | sounddevice | sounddevice | sounddevice |
+
+> **Note:** faster-whisper uses ctranslate2 which does not support Apple MPS. STT automatically uses CPU on macOS.
+> Translation models and Kokoro TTS can leverage Apple Silicon MPS acceleration.
 
 ## Supported Languages
 
@@ -38,17 +53,22 @@
 pip install copytalker
 ```
 
-### With All Features
+This installs CopyTalker with all TTS engines (Kokoro, Edge TTS, pyttsx3, Fish-Speech), PySide6 GUI, and core dependencies.
+
+> **Python 3.13 users:** `audioop-lts` is automatically installed for pydub compatibility.
+
+### With CJK Language Support
+
+For Chinese, Japanese, and Korean language support:
 
 ```bash
-# Full installation with all TTS engines
-pip install copytalker[full]
+pip install copytalker[cjk]
+```
 
-# With CJK language support
-pip install copytalker[full,cjk]
+Or for complete installation with everything:
 
-# Development installation
-pip install copytalker[dev]
+```bash
+pip install copytalker[complete]
 ```
 
 ### From Source
@@ -56,7 +76,7 @@ pip install copytalker[dev]
 ```bash
 git clone https://github.com/cycleuser/CopyTalker.git
 cd CopyTalker
-pip install -e .[full]
+pip install -e .
 ```
 
 ### System Dependencies
@@ -65,21 +85,134 @@ CopyTalker requires FFmpeg and PortAudio for audio processing:
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt install ffmpeg portaudio19-dev python3-dev
+sudo apt update
+sudo apt install -y ffmpeg portaudio19-dev libsndfile1 python3-dev
 ```
 
 **Fedora:**
 ```bash
-sudo dnf install ffmpeg portaudio-devel python3-devel
+sudo dnf install -y ffmpeg portaudio-devel python3-devel libsndfile
+```
+
+**macOS (with Homebrew):**
+```bash
+brew install ffmpeg portaudio libsndfile
+```
+
+**Windows:**
+- Download FFmpeg from https://ffmpeg.org/download.html and add to PATH
+
+### TTS Engines
+
+| Engine | Install | Features |
+|--------|---------|----------|
+| **Edge TTS** | Default | Microsoft Azure voices, requires internet |
+| **pyttsx3** | Default | System voices, works offline |
+| **Fish-Speech** | Default | Voice cloning, 50+ emotion tags, cloud API |
+| **Kokoro** | `pip install copytalker[kokoro]` | High-quality neural TTS, needs model download |
+
+### Model Downloads (via GUI Settings)
+
+**Whisper (Speech-to-Text):**
+| Model | Size | Speed |
+|-------|------|-------|
+| tiny | ~75 MB | Fastest |
+| base | ~145 MB | Fast |
+| small | ~465 MB | Balanced |
+| medium | ~1.5 GB | Slow |
+| large | ~3 GB | Slowest |
+
+**Translation:**
+| Model | Size | Supports |
+|-------|------|----------|
+| Helsinki-NLP | ~300 MB each | Specific language pairs (faster) |
+| NLLB-200-distilled-600M | ~1.2 GB | All 200 languages (fastest) |
+| NLLB-200-distilled-1.3B | ~2.6 GB | All 200 languages (balanced) |
+| NLLB-200-1.3B | ~2.6 GB | All 200 languages (high quality) |
+| NLLB-200-3.3B | ~6.5 GB | All 200 languages (best quality) |
+
+**TTS Models:**
+| Model | Size | Languages |
+|-------|------|-----------|
+| Kokoro-82M | ~330 MB | English, Chinese, Japanese |
+
+### Optional: CJK Language Processing
+
+For Chinese, Japanese, Korean text processing:
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt install -y libmecab-dev mecab mecab-ipadic-utf8
+pip install copytalker[cjk]
 ```
 
 **macOS:**
 ```bash
-brew install ffmpeg portaudio
+brew install mecab
+pip install copytalker[cjk]
 ```
 
-**Windows:**
-Download FFmpeg from https://ffmpeg.org/download.html and add to PATH.
+### Troubleshooting
+
+**Issue 1: GUI shows "No TTS engine available"**
+
+Solution:
+```bash
+pip install --upgrade copytalker
+```
+
+**Issue 2: Kokoro TTS connection timeout / model download failed**
+
+Kokoro requires downloading ~82MB model from HuggingFace. If connection fails:
+
+```bash
+# Option 1: Use proxy
+export https_proxy=http://127.0.0.1:7897
+export http_proxy=http://127.0.0.1:7897
+
+# Option 2: Use HuggingFace mirror (for users in China)
+export HF_ENDPOINT=https://hf-mirror.com
+
+# Then run CopyTalker
+copytalker --gui
+```
+
+Or use `edge-tts` which works without model downloads:
+```bash
+copytalker translate --target zh --tts-engine edge-tts
+```
+
+**Issue 3: Kokoro TTS cannot generate Chinese/Japanese speech**
+
+Solution:
+```bash
+pip install copytalker[cjk]
+```
+
+**Issue 4: PyAudio installation fails on macOS**
+
+Solution:
+```bash
+# CopyTalker uses sounddevice by default (pre-built binaries), PyAudio not required
+brew install portaudio
+pip install pyaudio  # only if you need PyAudio backend
+```
+
+## Supported Languages
+
+| Code | Language | TTS Support |
+|------|----------|-------------|
+| en | English | Kokoro, Edge, pyttsx3, Fish-Speech |
+| zh | Chinese | Kokoro, Edge, Fish-Speech |
+| ja | Japanese | Kokoro, Edge, Fish-Speech |
+| ko | Korean | Edge, Fish-Speech |
+| fr | French | Edge, Fish-Speech |
+| de | German | Edge, Fish-Speech |
+| es | Spanish | Edge, Fish-Speech |
+| ru | Russian | Edge, Fish-Speech |
+| it | Italian | Edge, Fish-Speech |
+| pt | Portuguese | Edge, Fish-Speech |
+| ar | Arabic | Edge, Fish-Speech |
 
 ## Quick Start
 

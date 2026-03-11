@@ -99,6 +99,7 @@ class AudioCapturer:
 
         # State tracking
         self._is_running = False
+        self._is_playing_back = False  # For echo cancellation
 
     @property
     def audio_queue(self) -> queue.Queue:

@@ -331,7 +331,7 @@ class CopyTalkerGUI:
         
         self.transcription_text = scrolledtext.ScrolledText(
             trans_frame,
-            height=6,
+            height=4,
             wrap=tk.WORD,
             font=("Helvetica", 11),
             state=tk.DISABLED,
@@ -344,7 +344,7 @@ class CopyTalkerGUI:
         
         self.translation_text = scrolledtext.ScrolledText(
             translation_frame,
-            height=6,
+            height=4,
             wrap=tk.WORD,
             font=("Helvetica", 11),
             state=tk.DISABLED,
