@@ -34,6 +34,13 @@ def setup_hf_mirror():
     logger.info("Using HuggingFace mirror: https://hf-mirror.com")
 
 
+def setup_torch_for_device():
+    """Setup torch to avoid meta tensor issues on certain devices."""
+    # Disable accelerated model loading which causes meta tensor issues
+    os.environ["ACCELERATE_USE_DEEPSPEED"] = "false"
+    os.environ["TRANSFORMERS_OFFLINE"] = "0"
+
+
 class KokoroTTS(TTSEngineBase):
     """
     Kokoro TTS engine - High quality neural TTS.
@@ -56,6 +63,7 @@ class KokoroTTS(TTSEngineBase):
         self._init_error = None
 
         setup_hf_mirror()
+        setup_torch_for_device()
 
     @property
     def name(self) -> str:
@@ -79,6 +87,34 @@ class KokoroTTS(TTSEngineBase):
 
         return self._is_available
 
+    def _resolve_device(self) -> str:
+        """Resolve the actual device to use, avoiding meta tensor issues."""
+        import torch
+
+        device = self.config.device
+
+        if device == "cuda":
+            if not torch.cuda.is_available():
+                logger.info("CUDA not available, using CPU for Kokoro TTS")
+                return "cpu"
+            return device
+
+        if device == "mps":
+            if not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()):
+                logger.info("MPS not available, using CPU for Kokoro TTS")
+                return "cpu"
+            # MPS has issues with meta tensors, use CPU for now
+            logger.info("MPS detected - using CPU to avoid meta tensor issues")
+            return "cpu"
+
+        if device == "rocm":
+            if not torch.cuda.is_available():
+                logger.info("ROCm not available, using CPU for Kokoro TTS")
+                return "cpu"
+            return device
+
+        return device
+
     def _ensure_pipeline(self, language: str) -> None:
         """Initialize the Kokoro pipeline."""
         if self._pipeline is not None:
@@ -90,19 +126,7 @@ class KokoroTTS(TTSEngineBase):
         from kokoro import KPipeline
 
         lang_code = get_kokoro_lang_code(language)
-        device = self.config.device
-
-        import torch
-
-        if device == "cuda" and not torch.cuda.is_available():
-            device = "cpu"
-            logger.info("CUDA not available, using CPU for Kokoro TTS")
-
-        if device == "mps":
-            mps_available = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
-            if not mps_available:
-                device = "cpu"
-                logger.info("MPS not available, using CPU for Kokoro TTS")
+        device = self._resolve_device()
 
         hf_endpoint = os.environ.get("HF_ENDPOINT", "huggingface.co")
         logger.info(
@@ -128,6 +152,19 @@ class KokoroTTS(TTSEngineBase):
                 )
                 logger.error(self._init_error)
                 raise TTSEngineNotAvailableError(self._init_error)
+
+            if "meta tensor" in error_msg or "no data" in error_msg:
+                logger.warning(f"Meta tensor issue on {device}, trying CPU: {e}")
+                try:
+                    self._pipeline = KPipeline(
+                        lang_code=lang_code,
+                        device="cpu",
+                    )
+                    logger.info("Kokoro TTS initialized on CPU (fallback from meta tensor issue)")
+                    return
+                except Exception as cpu_err:
+                    logger.error(f"CPU fallback also failed: {cpu_err}")
+                    raise TTSError(f"Kokoro initialization failed: {cpu_err}") from cpu_err
 
             if device != "cpu" and ("cuda" in error_msg or "mps" in error_msg):
                 logger.warning(f"GPU initialization failed ({e}), falling back to CPU")
