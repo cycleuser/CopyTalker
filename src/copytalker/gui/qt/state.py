@@ -26,6 +26,7 @@ from copytalker.core.config import (
     STTConfig,
     TranslationConfig,
     TTSConfig,
+    HistoryConfig,
     get_device,
 )
 from copytalker.core.constants import AUTO_DETECT_CODE
@@ -48,6 +49,9 @@ class QtAppState(QObject):
     captureModeChanged = Signal(str)
     isRunningChanged = Signal(bool)
     isRecordingPttChanged = Signal(bool)
+    historyEnabledChanged = Signal(bool)
+    saveOriginalAudioChanged = Signal(bool)
+    saveTranslatedAudioChanged = Signal(bool)
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -67,6 +71,11 @@ class QtAppState(QObject):
         self._trans_device: str = get_device()
         self._tts_device: str = get_device()
         self._calibrated_noise_level: float = 0.0
+
+        # History settings
+        self._history_enabled: bool = True
+        self._save_original_audio: bool = True
+        self._save_translated_audio: bool = True
 
         # Input mode
         self._capture_mode: str = "ptt"  # "ptt" or "vad"
@@ -218,6 +227,39 @@ class QtAppState(QObject):
             self._is_recording_ptt = value
             self.isRecordingPttChanged.emit(value)
 
+    # Property: history_enabled
+    @Property(bool, notify=historyEnabledChanged)
+    def historyEnabled(self) -> bool:
+        return self._history_enabled
+
+    @historyEnabled.setter
+    def historyEnabled(self, value: bool) -> None:
+        if self._history_enabled != value:
+            self._history_enabled = value
+            self.historyEnabledChanged.emit(value)
+
+    # Property: save_original_audio
+    @Property(bool, notify=saveOriginalAudioChanged)
+    def saveOriginalAudio(self) -> bool:
+        return self._save_original_audio
+
+    @saveOriginalAudio.setter
+    def saveOriginalAudio(self, value: bool) -> None:
+        if self._save_original_audio != value:
+            self._save_original_audio = value
+            self.saveOriginalAudioChanged.emit(value)
+
+    # Property: save_translated_audio
+    @Property(bool, notify=saveTranslatedAudioChanged)
+    def saveTranslatedAudio(self) -> bool:
+        return self._save_translated_audio
+
+    @saveTranslatedAudio.setter
+    def saveTranslatedAudio(self, value: bool) -> None:
+        if self._save_translated_audio != value:
+            self._save_translated_audio = value
+            self.saveTranslatedAudioChanged.emit(value)
+
 
 def build_app_config_from_qt(state: QtAppState) -> AppConfig:
     """Convert QtAppState to the AppConfig used by TranslationPipeline."""
@@ -241,6 +283,12 @@ def build_app_config_from_qt(state: QtAppState) -> AppConfig:
         tts_config.indextts_emotion = state.emotion
         tts_config.fish_speech_emotion = state.emotion
 
+    history_config = HistoryConfig(
+        enabled=state.historyEnabled,
+        save_original_audio=state.saveOriginalAudio,
+        save_translated_audio=state.saveTranslatedAudio,
+    )
+
     config = AppConfig(
         audio=AudioConfig(
             calibrated_noise_level=state.calibratedNoiseLevel,
@@ -255,5 +303,6 @@ def build_app_config_from_qt(state: QtAppState) -> AppConfig:
             device=state.transDevice,
         ),
         tts=tts_config,
+        history=history_config,
     )
     return config

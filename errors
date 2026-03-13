@@ -1,0 +1,14 @@
+(dev) fred@laptop:~/Documents/GitHub/cycleuser/CopyTalker$ copytalker --gui
+
+2026-03-12 07:08:10 - INFO - copytalker.gui.qt.app - Starting translation pipeline
+2026-03-12 07:08:10 - INFO - copytalker.gui.qt.controllers.pipeline_controller - Starting Qt pipeline controller
+2026-03-12 07:08:11 - ERROR - copytalker.gui.qt.controllers.pipeline_controller - Pipeline error: /home/fred/miniconda3/envs/dev/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclAlltoAll
+2026-03-12 07:08:18 - INFO - copytalker.gui.qt.app - Starting translation pipeline
+2026-03-12 07:08:18 - INFO - copytalker.gui.qt.controllers.pipeline_controller - Starting Qt pipeline controller
+2026-03-12 07:08:18 - ERROR - copytalker.gui.qt.controllers.pipeline_controller - Pipeline error: /home/fred/miniconda3/envs/dev/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclAlltoAll
+2026-03-12 07:08:37 - INFO - copytalker.gui.qt.app - Starting translation pipeline
+2026-03-12 07:08:37 - INFO - copytalker.gui.qt.controllers.pipeline_controller - Starting Qt pipeline controller
+2026-03-12 07:08:37 - ERROR - copytalker.gui.qt.controllers.pipeline_controller - Pipeline error: /home/fred/miniconda3/envs/dev/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclAlltoAll
+2026-03-12 07:08:40 - INFO - copytalker.gui.qt.app - Starting translation pipeline
+2026-03-12 07:08:40 - INFO - copytalker.gui.qt.controllers.pipeline_controller - Starting Qt pipeline controller
+2026-03-12 07:08:40 - ERROR - copytalker.gui.qt.controllers.pipeline_controller - Pipeline error: /home/fred/miniconda3/envs/dev/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so: undefined symbol: ncclAlltoAll

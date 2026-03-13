@@ -29,6 +29,7 @@ def get_device() -> str:
     """Detect best device: CUDA, MPS, ROCm, or CPU."""
     env = os.environ.get("COPYTALKER_DEVICE", "auto").lower()
     if env == "cpu": return "cpu"
+    cuda = mps = rocm = False
     try:
         import torch
         cuda = torch.cuda.is_available()
@@ -38,7 +39,10 @@ def get_device() -> str:
             if hasattr(torch.version, "hip") and torch.version.hip: rocm = True
             elif os.environ.get("ROCM_VISIBLE_DEVICES"): rocm = True
         except: pass
-    except ImportError: cuda = mps = rocm = False
+    except ImportError:
+        pass
+    except Exception:
+        pass
     if env == "cuda" and cuda: return "cuda"
     if env == "mps" and mps: return "mps"
     if env == "rocm" and rocm: return "rocm"
@@ -70,6 +74,8 @@ def list_available_devices() -> list[dict[str, str | bool]]:
         devs.append({"type": "rocm", "available": rocm_ok, "info": rocm_msg})
     except ImportError:
         for t in ["cuda", "mps", "rocm"]: devs.append({"type": t, "available": False, "info": "PyTorch not installed"})
+    except Exception:
+        for t in ["cuda", "mps", "rocm"]: devs.append({"type": t, "available": False, "info": "PyTorch/CUDA error"})
     return devs
 
 @dataclass
@@ -184,6 +190,24 @@ class CacheConfig:
     @property
     def tts_cache_dir(self) -> Path:
         return self.cache_dir / "tts"
+    @property
+    def history_dir(self) -> Path:
+        return self.cache_dir / "history"
+
+
+@dataclass
+class HistoryConfig:
+    """Conversation history configuration."""
+    enabled: bool = True
+    save_original_audio: bool = True
+    save_translated_audio: bool = True
+    history_dir: Path = field(default_factory=lambda: get_default_cache_dir() / "history")
+    def __post_init__(self):
+        if isinstance(self.history_dir, str):
+            self.history_dir = Path(self.history_dir)
+    def ensure_history_dir(self) -> Path:
+        self.history_dir.mkdir(parents=True, exist_ok=True)
+        return self.history_dir
 
 
 @dataclass
@@ -194,6 +218,7 @@ class AppConfig:
     translation: TranslationConfig = field(default_factory=TranslationConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
+    history: HistoryConfig = field(default_factory=HistoryConfig)
     debug: bool = False
     log_level: str = "INFO"
     def validate(self) -> None:
@@ -209,6 +234,7 @@ class AppConfig:
             translation=TranslationConfig(**data.get("translation", {})),
             tts=TTSConfig(**data.get("tts", {})),
             cache=CacheConfig(**data.get("cache", {})),
+            history=HistoryConfig(**data.get("history", {})),
             debug=data.get("debug", False),
             log_level=data.get("log_level", "INFO"),
         )
@@ -239,6 +265,7 @@ class AppConfig:
             "translation": {"source_lang": self.translation.source_lang, "target_lang": self.translation.target_lang, "device": self.translation.device},
             "tts": {"engine": self.tts.engine, "language": self.tts.language, "device": self.tts.device},
             "cache": {"cache_dir": str(self.cache.cache_dir)},
+            "history": {"enabled": self.history.enabled, "save_original_audio": self.history.save_original_audio, "save_translated_audio": self.history.save_translated_audio, "history_dir": str(self.history.history_dir)},
             "debug": self.debug,
             "log_level": self.log_level,
         }

@@ -136,6 +136,21 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
         type=str,
         help="Emotion for TTS (IndexTTS: happy/sad/angry/etc, Fish-Speech: emotion tag)",
     )
+    translate_parser.add_argument(
+        "--no-history",
+        action="store_true",
+        help="Disable conversation history saving",
+    )
+    translate_parser.add_argument(
+        "--no-original-audio",
+        action="store_true",
+        help="Disable saving original audio in history",
+    )
+    translate_parser.add_argument(
+        "--no-translated-audio",
+        action="store_true",
+        help="Disable saving translated audio in history",
+    )
     
     # List voices command
     list_voices_parser = subparsers.add_parser(
@@ -370,7 +385,12 @@ def cmd_translate(args: argparse.Namespace) -> int:
         config.stt.device = args.device
         config.translation.device = args.device
         config.tts.device = args.device
-    
+
+    # History settings
+    config.history.enabled = not args.no_history
+    config.history.save_original_audio = not args.no_original_audio
+    config.history.save_translated_audio = not args.no_translated_audio
+
     source_name = "Auto-detect" if args.source == AUTO_DETECT_CODE else get_language_name(args.source)
     target_name = get_language_name(args.target)
     

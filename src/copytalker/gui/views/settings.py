@@ -82,6 +82,11 @@ class SettingsView(ttk.Frame):
         self.dl_progress_var = tk.StringVar(value="")
         self.cache_info_var = tk.StringVar(value="")
 
+        # History settings
+        self.history_enabled_var = tk.BooleanVar(value=state.history_enabled)
+        self.save_original_audio_var = tk.BooleanVar(value=state.save_original_audio)
+        self.save_translated_audio_var = tk.BooleanVar(value=state.save_translated_audio)
+
         # Recording state
         self._recorder = None
         self._rec_timer_id = None
@@ -145,6 +150,7 @@ class SettingsView(ttk.Frame):
         p = self._inner
         self._build_languages_section(p)
         self._build_input_mode_section(p)
+        self._build_history_section(p)
         self._build_tts_section(p)
         self._build_ref_audio_section(p)
         self._build_record_section(p)
@@ -250,6 +256,32 @@ class SettingsView(ttk.Frame):
             variable=self.capture_mode_var,
             value="vad",
         ).pack(anchor="w", pady=_ROW_PAD)
+
+    def _build_history_section(self, parent: tk.Widget) -> None:
+        frame = ttk.LabelFrame(parent, text="Conversation History", padding=_SECTION_INNER_PAD)
+        frame.pack(fill=tk.X, pady=_SECTION_PAD)
+
+        ttk.Checkbutton(
+            frame,
+            text="Enable conversation history saving",
+            variable=self.history_enabled_var,
+        ).pack(anchor="w", pady=_ROW_PAD)
+
+        ttk.Checkbutton(
+            frame,
+            text="Save original audio",
+            variable=self.save_original_audio_var,
+        ).pack(anchor="w", pady=_ROW_PAD)
+
+        ttk.Checkbutton(
+            frame,
+            text="Save translated audio",
+            variable=self.save_translated_audio_var,
+        ).pack(anchor="w", pady=_ROW_PAD)
+
+        row = ttk.Frame(frame)
+        row.pack(fill=tk.X, pady=_ROW_PAD)
+        ttk.Label(row, text="History is saved to cache/history/ directory", foreground="gray").pack(side=tk.LEFT)
 
     def _build_tts_section(self, parent: tk.Widget) -> None:
         frame = ttk.LabelFrame(parent, text="Text-to-Speech", padding=_SECTION_INNER_PAD)
@@ -513,6 +545,11 @@ class SettingsView(ttk.Frame):
         s.translation_model = self.trans_model_var.get()
         s.trans_device = self.trans_device_var.get()
         s.tts_device = self.tts_device_var.get()
+
+        # History settings
+        s.history_enabled = self.history_enabled_var.get()
+        s.save_original_audio = self.save_original_audio_var.get()
+        s.save_translated_audio = self.save_translated_audio_var.get()
 
     # ==================================================================
     # Event handlers

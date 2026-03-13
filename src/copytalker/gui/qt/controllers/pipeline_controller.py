@@ -81,8 +81,15 @@ class PipelineWorker(QThread):
                 self.msleep(100)  # Sleep 100ms, then check again
 
         except Exception as e:
-            logger.error(f"Pipeline error: {e}")
-            self.error_signal.emit(str(e))
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"Pipeline error: {error_detail}")
+            # Check if it's a CUDA/torch error
+            error_str = str(e)
+            if "nccl" in error_str.lower() or "cuda" in error_str.lower() or "torch" in error_str.lower():
+                self.error_signal.emit(f"CUDA/PyTorch error. Try setting COPYTALKER_DEVICE=cpu: {error_str}")
+            else:
+                self.error_signal.emit(str(e))
         finally:
             self._cleanup()
             self.stopped_signal.emit()

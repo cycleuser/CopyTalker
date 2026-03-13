@@ -13,6 +13,7 @@ import numpy as np
 from copytalker.core.config import AppConfig
 from copytalker.core.constants import AUTO_DETECT_CODE, normalize_language_code
 from copytalker.core.exceptions import PipelineError
+from copytalker.core.history import ConversationHistory
 from copytalker.core.types import (
     PipelineEvent,
     PipelineCallback,
@@ -74,6 +75,11 @@ class TranslationPipeline:
             "error": [],
             "status": [],
         }
+        
+        # Conversation history
+        self._history: Optional[ConversationHistory] = None
+        self._current_audio: Optional[np.ndarray] = None
+        self._current_entry_index: Optional[int] = None
     
     def register_callback(self, event_type: str, callback: PipelineCallback) -> None:
         """
@@ -117,6 +123,12 @@ class TranslationPipeline:
         
         self._emit_event("status", "Initializing TTS engine...")
         self._tts_engine = get_tts_engine(self.config.tts.engine, self.config.tts)
+        
+        # Initialize conversation history if enabled
+        if self.config.history.enabled:
+            self._history = ConversationHistory(history_dir=self.config.history.history_dir)
+            self._history.start_session()
+            logger.info(f"Conversation history initialized: {self._history.session_dir}")
         
         logger.info("All components initialized")
     
@@ -176,6 +188,11 @@ class TranslationPipeline:
         if self._audio_capturer is None:
             logger.warning("Cannot inject audio: capturer not initialised")
             return
+        
+        # Save original audio for history (PTT mode)
+        if self._history and self.config.history.save_original_audio:
+            self._current_audio = audio.copy()
+        
         self._audio_capturer._audio_queue.put(audio)
         logger.debug(f"Injected audio segment: {len(audio)} samples")
     
@@ -209,6 +226,14 @@ class TranslationPipeline:
         if self._audio_player:
             self._audio_player.close()
         
+        # End conversation history session
+        if self._history:
+            try:
+                self._history.end_session()
+                logger.info(f"Conversation history saved: {self._history.markdown_path}")
+            except Exception as e:
+                logger.error(f"Error saving conversation history: {e}")
+        
         self._threads.clear()
         self._is_running = False
         
@@ -225,6 +250,10 @@ class TranslationPipeline:
                 if audio is None:
                     continue
                 
+                # Save original audio for history
+                if self._history and self.config.history.save_original_audio:
+                    self._current_audio = audio.copy()
+                
                 # Transcribe
                 result = self._recognizer.transcribe(
                     audio,
@@ -232,13 +261,27 @@ class TranslationPipeline:
                 )
                 
                 if result.is_empty():
+                    self._current_audio = None
                     continue
+                
+                # Save to history
+                if self._history:
+                    entry_index = self._history.create_entry()
+                    if self.config.history.save_original_audio and self._current_audio is not None:
+                        self._history.save_original_audio(
+                            self._current_audio,
+                            self.config.audio.sample_rate,
+                        )
+                    self._history.add_transcription(result.text, result.language)
+                    self._current_entry_index = entry_index
                 
                 # Emit transcription event
                 self._emit_event("transcription", result)
                 
-                # Queue for translation
-                self._text_queue.put(result)
+                # Queue for translation (include entry index)
+                self._text_queue.put((result, self._current_entry_index))
+                
+                self._current_audio = None
                 
             except Exception as e:
                 logger.error(f"STT error: {e}")
@@ -254,7 +297,12 @@ class TranslationPipeline:
         
         while not self._stop_event.is_set():
             try:
-                transcription: TranscriptionResult = self._text_queue.get(timeout=1.0)
+                item = self._text_queue.get(timeout=1.0)
+                if isinstance(item, tuple):
+                    transcription, entry_index = item
+                else:
+                    transcription = item
+                    entry_index = None
             except queue.Empty:
                 continue
             
@@ -268,11 +316,19 @@ class TranslationPipeline:
                     target_lang,
                 )
                 
+                # Save to history
+                if self._history and entry_index is not None:
+                    self._history.add_translation(
+                        result.translated_text,
+                        target_lang,
+                        entry_index,
+                    )
+                
                 # Emit translation event
                 self._emit_event("translation", result)
                 
-                # Queue for TTS
-                self._translation_queue.put(result)
+                # Queue for TTS (include entry index)
+                self._translation_queue.put((result, entry_index))
                 
             except Exception as e:
                 logger.error(f"Translation error: {e}")
@@ -289,7 +345,12 @@ class TranslationPipeline:
         
         while not self._stop_event.is_set():
             try:
-                translation: TranslationResult = self._translation_queue.get(timeout=1.0)
+                item = self._translation_queue.get(timeout=1.0)
+                if isinstance(item, tuple):
+                    translation, entry_index = item
+                else:
+                    translation = item
+                    entry_index = None
             except queue.Empty:
                 continue
             
@@ -308,6 +369,10 @@ class TranslationPipeline:
                 
                 if len(audio) == 0:
                     continue
+                
+                # Save translated audio to history
+                if self._history and entry_index is not None and self.config.history.save_translated_audio:
+                    self._history.save_translated_audio(audio, sample_rate, entry_index)
                 
                 # Emit synthesis event
                 self._emit_event("synthesis", {

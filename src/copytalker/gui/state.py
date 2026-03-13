@@ -10,6 +10,7 @@ from copytalker.core.config import (
     STTConfig,
     TranslationConfig,
     TTSConfig,
+    HistoryConfig,
     get_device,
 )
 from copytalker.core.constants import AUTO_DETECT_CODE
@@ -34,6 +35,11 @@ class AppState:
     trans_device: str = field(default_factory=lambda: get_device())
     tts_device: str = field(default_factory=lambda: get_device())
     calibrated_noise_level: float = 0.0
+
+    # History settings
+    history_enabled: bool = True
+    save_original_audio: bool = True
+    save_translated_audio: bool = True
 
     # Input mode
     capture_mode: str = "ptt"  # "ptt" or "vad"
@@ -65,6 +71,12 @@ def build_app_config(state: AppState) -> AppConfig:
         tts_config.indextts_emotion = state.emotion
         tts_config.fish_speech_emotion = state.emotion
 
+    history_config = HistoryConfig(
+        enabled=state.history_enabled,
+        save_original_audio=state.save_original_audio,
+        save_translated_audio=state.save_translated_audio,
+    )
+
     config = AppConfig(
         audio=AudioConfig(
             calibrated_noise_level=state.calibrated_noise_level,
@@ -79,5 +91,6 @@ def build_app_config(state: AppState) -> AppConfig:
             device=state.trans_device,
         ),
         tts=tts_config,
+        history=history_config,
     )
     return config

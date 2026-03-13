@@ -143,6 +143,7 @@ class QtSettingsDialog(QDialog):
 
         cl.addWidget(self._create_language_group())
         cl.addWidget(self._create_input_group())
+        cl.addWidget(self._create_history_group())
         cl.addWidget(self._create_tts_group())
         cl.addWidget(self._create_translation_group())
         cl.addWidget(self._create_downloads_group())
@@ -187,6 +188,30 @@ class QtSettingsDialog(QDialog):
         layout.addWidget(self._vad_radio)
 
         return self._input_group
+
+    def _create_history_group(self):
+        t = self._i18n
+        self._history_group = QGroupBox("Conversation History")
+        layout = QVBoxLayout(self._history_group)
+        layout.setSpacing(8)
+
+        self._history_enabled_cb = QCheckBox("Enable conversation history saving")
+        self._history_enabled_cb.setChecked(True)
+        layout.addWidget(self._history_enabled_cb)
+
+        self._save_original_audio_cb = QCheckBox("Save original audio")
+        self._save_original_audio_cb.setChecked(True)
+        layout.addWidget(self._save_original_audio_cb)
+
+        self._save_translated_audio_cb = QCheckBox("Save translated audio")
+        self._save_translated_audio_cb.setChecked(True)
+        layout.addWidget(self._save_translated_audio_cb)
+
+        info_label = QLabel("History is saved to cache/history/ directory")
+        info_label.setStyleSheet("color: gray;")
+        layout.addWidget(info_label)
+
+        return self._history_group
 
     def _create_tts_group(self):
         t = self._i18n
@@ -733,6 +758,11 @@ class QtSettingsDialog(QDialog):
         s.translationModel = self._trans_model_combo.currentText()
         s.transDevice = self._trans_device_combo.currentText()
         s.ttsDevice = self._tts_device_combo.currentText()
+
+        # History settings
+        s.historyEnabled = self._history_enabled_cb.isChecked()
+        s.saveOriginalAudio = self._save_original_audio_cb.isChecked()
+        s.saveTranslatedAudio = self._save_translated_audio_cb.isChecked()
 
     @staticmethod
     def _extract_lang_code(text: str) -> str | None:
