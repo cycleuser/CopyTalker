@@ -111,7 +111,7 @@ class AudioPlayer:
 
         # Convert to int16
         if audio_data.dtype == np.float32 or audio_data.dtype == np.float64:
-            audio_int16 = (np.clip(audio_data, -1.0, 1.0) * 32767).astype(np.int16)
+            audio_int16 = (np.clip(audio_data, -1.0, 1.0) * 32768).clip(-32768, 32767).astype(np.int16)
         elif audio_data.dtype != np.int16:
             audio_int16 = audio_data.astype(np.int16)
         else:
@@ -178,6 +178,15 @@ class AudioPlayer:
     def close(self) -> None:
         """Release audio resources (no-op for sounddevice)."""
         logger.debug("Audio player closed")
+
+    def stop_playback(self) -> None:
+        """Stop any currently-playing audio immediately (barge-in support)."""
+        try:
+            import sounddevice as sd
+            sd.stop()
+        except Exception:
+            pass
+        self._is_playing = False
 
     def __enter__(self) -> "AudioPlayer":
         """Context manager entry."""

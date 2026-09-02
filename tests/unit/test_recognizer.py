@@ -26,7 +26,7 @@ class TestWhisperRecognizer:
         """Test default configuration is applied."""
         recognizer = WhisperRecognizer()
         
-        assert recognizer.config.model_size == "small"
+        assert recognizer.config.model_size == "tiny"
     
     @patch('copytalker.speech.recognizer.WhisperModel')
     def test_transcribe(self, mock_whisper_class, sample_audio_mono):

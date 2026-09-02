@@ -50,8 +50,8 @@ TOOLS = [
                     "whisper_model": {
                         "type": "string",
                         "enum": ["tiny", "base", "small", "medium", "large"],
-                        "description": "Whisper model size.",
-                        "default": "small",
+                        "description": "Whisper model size. tiny (~75MB) is fastest.",
+                        "default": "tiny",
                     },
                     "device": {
                         "type": "string",
@@ -62,6 +62,23 @@ TOOLS = [
                     "duration": {
                         "type": "number",
                         "description": "Run for this many seconds then stop.",
+                    },
+                    "conversation": {
+                        "type": "boolean",
+                        "description": (
+                            "Enable conversation mode: feed prior turns to the "
+                            "translator as context for coherent dialogue. Best "
+                            "with the Ollama backend."
+                        ),
+                        "default": False,
+                    },
+                    "context_window": {
+                        "type": "integer",
+                        "description": (
+                            "Number of prior turns to use as context (0 = one-shot). "
+                            "Overrides the conversation default of 5 when > 0."
+                        ),
+                        "default": 0,
                     },
                 },
                 "required": ["target"],
@@ -164,7 +181,7 @@ TOOLS = [
                     "engine": {
                         "type": "string",
                         "enum": [
-                            "kokoro", "edge-tts", "indextts", "fish-speech",
+                            "kokoro", "edge-tts", "pyttsx3", "indextts", "fish-speech",
                         ],
                         "description": "TTS engine.",
                         "default": "kokoro",

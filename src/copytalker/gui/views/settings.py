@@ -87,6 +87,10 @@ class SettingsView(ttk.Frame):
         self.save_original_audio_var = tk.BooleanVar(value=state.save_original_audio)
         self.save_translated_audio_var = tk.BooleanVar(value=state.save_translated_audio)
 
+        # Conversation mode
+        self.conversation_mode_var = tk.BooleanVar(value=state.conversation_mode)
+        self.context_window_var = tk.IntVar(value=state.context_window)
+
         # Recording state
         self._recorder = None
         self._rec_timer_id = None
@@ -278,6 +282,31 @@ class SettingsView(ttk.Frame):
             text="Save translated audio",
             variable=self.save_translated_audio_var,
         ).pack(anchor="w", pady=_ROW_PAD)
+
+        ttk.Separator(frame, orient="horizontal").pack(fill=tk.X, pady=6)
+
+        ttk.Checkbutton(
+            frame,
+            text="Conversation mode  (use prior turns as translation context)",
+            variable=self.conversation_mode_var,
+        ).pack(anchor="w", pady=_ROW_PAD)
+
+        cw_row = ttk.Frame(frame)
+        cw_row.pack(fill=tk.X, pady=_ROW_PAD)
+        ttk.Label(cw_row, text="Context window:", width=_LABEL_WIDTH).pack(side=tk.LEFT)
+        ttk.Spinbox(
+            cw_row,
+            from_=0,
+            to=20,
+            increment=1,
+            textvariable=self.context_window_var,
+            width=6,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Label(
+            cw_row,
+            text="prior turns fed to translator (0 = one-shot; best with Ollama)",
+            foreground="gray",
+        ).pack(side=tk.LEFT)
 
         row = ttk.Frame(frame)
         row.pack(fill=tk.X, pady=_ROW_PAD)
@@ -550,6 +579,10 @@ class SettingsView(ttk.Frame):
         s.history_enabled = self.history_enabled_var.get()
         s.save_original_audio = self.save_original_audio_var.get()
         s.save_translated_audio = self.save_translated_audio_var.get()
+
+        # Conversation mode
+        s.conversation_mode = self.conversation_mode_var.get()
+        s.context_window = self.context_window_var.get()
 
     # ==================================================================
     # Event handlers

@@ -73,7 +73,10 @@ class PipelineWorker(QThread):
             self._pipeline.register_callback("error", self._on_error)
 
             # Start pipeline
-            self._pipeline.start()
+            self._pipeline.start(
+                capture_mode=self._state.captureMode,
+                continuous=self._state.continuousMode,
+            )
             self.started_signal.emit(self._state.captureMode)
 
             # Keep thread alive while pipeline runs
@@ -197,6 +200,20 @@ class QtPipelineController(QObject):
         self._is_running = False
         self.error_occurred.emit(error_msg)
         self.stopped.emit()
+
+    def barge_in(self) -> None:
+        """Request barge-in: interrupt assistant speech and resume listening."""
+        if self._worker and self._worker._pipeline:
+            try:
+                self._worker._pipeline.conversation_fsm.request_barge_in()
+            except Exception as e:
+                logger.debug(f"Barge-in error: {e}")
+
+    def get_pipeline(self):
+        """Expose the current pipeline (for FSM listener registration)."""
+        if self._worker:
+            return self._worker._pipeline
+        return None
 
     def start_ptt_capture(self) -> None:
         """Start PTT capture."""

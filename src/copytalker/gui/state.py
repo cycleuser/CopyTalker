@@ -41,6 +41,10 @@ class AppState:
     save_original_audio: bool = True
     save_translated_audio: bool = True
 
+    # Conversation mode
+    conversation_mode: bool = False
+    context_window: int = 0
+
     # Input mode
     capture_mode: str = "ptt"  # "ptt" or "vad"
 
@@ -75,6 +79,7 @@ def build_app_config(state: AppState) -> AppConfig:
         enabled=state.history_enabled,
         save_original_audio=state.save_original_audio,
         save_translated_audio=state.save_translated_audio,
+        context_window=state.context_window if state.conversation_mode else 0,
     )
 
     config = AppConfig(

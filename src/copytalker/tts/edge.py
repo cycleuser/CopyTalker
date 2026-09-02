@@ -127,15 +127,10 @@ class EdgeTTS(TTSEngineBase):
         logger.debug(f"Edge TTS synthesizing: '{text[:50]}...' (voice={voice_name})")
         
         try:
-            # Run async synthesis
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                mp3_data = loop.run_until_complete(
-                    self._synthesize_async(text, voice_name, rate)
-                )
-            finally:
-                loop.close()
+            # Run async synthesis (asyncio.run manages loop lifecycle)
+            mp3_data = asyncio.run(
+                self._synthesize_async(text, voice_name, rate)
+            )
             
             if not mp3_data:
                 logger.warning("Edge TTS produced no audio")

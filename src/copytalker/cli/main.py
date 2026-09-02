@@ -115,9 +115,9 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
     translate_parser.add_argument(
         "--whisper-model",
         type=str,
-        choices=["tiny", "base", "small", "medium", "large"],
-        default="small",
-        help="Whisper model size",
+        choices=["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"],
+        default="tiny",
+        help="Whisper model size (default: tiny ~75MB for speed)",
     )
     translate_parser.add_argument(
         "--device",
@@ -150,6 +150,20 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
         "--no-translated-audio",
         action="store_true",
         help="Disable saving translated audio in history",
+    )
+    translate_parser.add_argument(
+        "--conversation",
+        action="store_true",
+        help="Enable conversation mode (use prior turns as translation context). "
+             "Best with the Ollama backend. Sets context-window to 5.",
+    )
+    translate_parser.add_argument(
+        "--context-window",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Number of prior turns to feed to the translator as context (0 = "
+             "one-shot). Implies conversation mode when > 0.",
     )
     
     # List voices command
@@ -299,7 +313,7 @@ For more information, visit: https://github.com/cycleuser/CopyTalker
     download_parser.add_argument(
         "--whisper",
         type=str,
-        choices=["tiny", "base", "small", "medium", "large"],
+        choices=["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"],
         help="Download Whisper model",
     )
     download_parser.add_argument(
@@ -391,6 +405,15 @@ def cmd_translate(args: argparse.Namespace) -> int:
     config.history.save_original_audio = not args.no_original_audio
     config.history.save_translated_audio = not args.no_translated_audio
 
+    # Conversation mode: --conversation sets a default window of 5;
+    # --context-window N overrides. Requires history to be enabled.
+    context_window = args.context_window
+    if getattr(args, "conversation", False) and context_window <= 0:
+        context_window = 5
+    if context_window > 0 and not config.history.enabled:
+        config.history.enabled = True
+    config.history.context_window = context_window
+
     source_name = "Auto-detect" if args.source == AUTO_DETECT_CODE else get_language_name(args.source)
     target_name = get_language_name(args.target)
     
@@ -400,6 +423,8 @@ def cmd_translate(args: argparse.Namespace) -> int:
     print(f"Target: {target_name}")
     print(f"TTS Engine: {args.tts_engine}")
     print(f"Whisper Model: {args.whisper_model}")
+    if context_window > 0:
+        print(f"Conversation Mode: ON (context window={context_window})")
     print(f"{'=' * 40}\n")
     
     def on_transcription(event):

@@ -35,9 +35,11 @@ def translate(
     source: str = "auto",
     voice: str | None = None,
     tts_engine: str = "auto",
-    whisper_model: str = "small",
+    whisper_model: str = "tiny",
     device: str = "auto",
     duration: float | None = None,
+    conversation: bool = False,
+    context_window: int = 0,
 ) -> ToolResult:
     """Start a real-time speech-to-speech translation session.
 
@@ -57,6 +59,12 @@ def translate(
         Compute device: cpu, cuda, or auto.
     duration : float or None
         Run for this many seconds then stop. None = until interrupted.
+    conversation : bool
+        Enable conversation mode (use prior turns as translation context).
+        Best with the Ollama backend. Sets context_window to 5.
+    context_window : int
+        Number of prior turns to feed to the translator (0 = one-shot).
+        Overrides the conversation default when > 0.
 
     Returns
     -------
@@ -77,6 +85,14 @@ def translate(
         config.translation.target_lang = target
         config.tts.engine = tts_engine
         config.tts.language = target
+
+        # Conversation mode
+        window = context_window
+        if conversation and window <= 0:
+            window = 5
+        if window > 0:
+            config.history.enabled = True
+        config.history.context_window = window
 
         if voice:
             config.tts.voice = voice
@@ -454,7 +470,7 @@ def _write_wav(path: str, audio: Any, sample_rate: int) -> None:
     import numpy as np
 
     # Convert float32 [-1, 1] to int16
-    audio_int16 = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+    audio_int16 = (np.clip(audio, -1.0, 1.0) * 32768).clip(-32768, 32767).astype(np.int16)
 
     with wave.open(path, "wb") as wf:
         wf.setnchannels(1)

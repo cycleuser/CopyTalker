@@ -364,6 +364,19 @@ class ConversationHistory:
         """Get all conversation entries."""
         return self._entries.copy()
 
+    def get_context(self, window: int = 0) -> list[ConversationEntry]:
+        """Return the last *window* completed entries for use as translation context.
+
+        A "completed" entry has both original and translated text.  If *window*
+        is <= 0 an empty list is returned (context disabled).
+        """
+        if window <= 0:
+            return []
+        completed = [e for e in self._entries if e.original_text and e.translated_text]
+        if len(completed) <= window:
+            return completed
+        return completed[-window:]
+
 
 def get_default_history_dir() -> Path:
     """Get the default history directory."""

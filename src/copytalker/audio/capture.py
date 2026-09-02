@@ -111,6 +111,15 @@ class AudioCapturer:
         """Check if capture is running."""
         return self._is_running
 
+    def set_playback_active(self, active: bool) -> None:
+        """Mark whether TTS playback is currently active.
+
+        While active, the capture loop skips VAD processing and queueing so
+        that the system's own TTS output is not captured and re-translated
+        (echo cancellation).
+        """
+        self._is_playing_back = active
+
     def start(self) -> None:
         """Start audio capture in a background thread."""
         if self._is_running:
@@ -168,6 +177,14 @@ class AudioCapturer:
         stream.start()
         try:
             while not self._stop_event.is_set():
+                # Echo cancellation: skip capture while TTS is playing back
+                if self._is_playing_back:
+                    try:
+                        frame_q.get(timeout=0.1)
+                    except queue.Empty:
+                        pass
+                    continue
+
                 try:
                     frame = frame_q.get(timeout=0.5)
                 except queue.Empty:
@@ -231,6 +248,14 @@ class AudioCapturer:
         last_voice_time = time.time()
 
         while not self._stop_event.is_set():
+            # Echo cancellation: skip capture while TTS is playing back
+            if self._is_playing_back:
+                try:
+                    pa_stream.read(self.config.frame_size, exception_on_overflow=False)
+                except Exception:
+                    pass
+                continue
+
             try:
                 frame = pa_stream.read(
                     self.config.frame_size,

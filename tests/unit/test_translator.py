@@ -129,11 +129,16 @@ class TestUnifiedTranslator:
     """Tests for UnifiedTranslator."""
     
     def test_initialization(self):
-        """Test UnifiedTranslator initialization."""
+        """Test UnifiedTranslator initialization (backends are lazy)."""
         translator = UnifiedTranslator()
-        
-        assert translator._helsinki is not None
-        assert translator._nllb is not None
+
+        # Backends start as None and are created on first access
+        assert translator._helsinki is None
+        assert translator._nllb is None
+        assert translator._ollama is None
+        # Properties instantiate on demand
+        assert translator.helsinki is not None
+        assert translator.nllb is not None
     
     def test_supports_pair(self):
         """Test supports_pair delegates to backends."""

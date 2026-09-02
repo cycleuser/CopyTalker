@@ -5,7 +5,7 @@ Helsinki-NLP MarianMT translation backend.
 import logging
 import re
 import time
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 
@@ -33,9 +33,9 @@ class HelsinkiTranslator:
         """
         self.config = config or TranslationConfig()
 
-        self._models: Dict[str, any] = {}
-        self._tokenizers: Dict[str, any] = {}
-        self._device = self._device = self._resolve_device()
+        self._models: Dict[str, Any] = {}
+        self._tokenizers: Dict[str, Any] = {}
+        self._device = self._resolve_device()
 
     def _resolve_device(self) -> str:
         """Resolve the actual device to use."""
@@ -131,6 +131,7 @@ class HelsinkiTranslator:
         text: str,
         source_lang: str,
         target_lang: str,
+        context: Optional[List["TranslationResult"]] = None,
     ) -> TranslationResult:
         """
         Translate text using Helsinki-NLP model.
@@ -139,6 +140,7 @@ class HelsinkiTranslator:
             text: Text to translate
             source_lang: Source language code
             target_lang: Target language code
+            context: Ignored by this MT backend (kept for API compatibility).
 
         Returns:
             TranslationResult with translated text

@@ -119,27 +119,31 @@ class ModelCache:
     ) -> Path:
         """
         Download translation model if not cached.
-        
+
+        Models are cached in the HuggingFace Hub default cache
+        (~/.cache/huggingface/hub), which is where ``transformers``
+        ``from_pretrained`` loads them from at runtime.  This avoids keeping
+        a duplicate copy under ``copytalker/translation``.
+
         Args:
             model_name: HuggingFace model ID
             progress_callback: Optional callback for progress updates
-            
+
         Returns:
-            Path to model directory
+            Path to model directory inside the HF hub cache
         """
         logger.info(f"Checking translation model: {model_name}")
-        
+
         try:
             from huggingface_hub import snapshot_download
-            
-            model_path = snapshot_download(
-                repo_id=model_name,
-                cache_dir=str(self.translation_dir),
-            )
-            
+
+            # No cache_dir override -> uses the default HF hub cache, which
+            # is exactly where from_pretrained() looks at runtime.
+            model_path = snapshot_download(repo_id=model_name)
+
             logger.info(f"Translation model {model_name} ready")
             return Path(model_path)
-            
+
         except Exception as e:
             logger.error(f"Failed to download translation model: {e}")
             raise ModelDownloadError(f"Translation model download failed: {e}") from e

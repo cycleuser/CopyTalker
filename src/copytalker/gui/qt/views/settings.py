@@ -16,6 +16,7 @@ try:
         QDialogButtonBox,
         QFileDialog,
         QFormLayout,
+        QFrame,
         QGridLayout,
         QGroupBox,
         QHBoxLayout,
@@ -26,6 +27,7 @@ try:
         QRadioButton,
         QScrollArea,
         QSizePolicy,
+        QSpinBox,
         QTabWidget,
         QVBoxLayout,
         QWidget,
@@ -187,6 +189,18 @@ class QtSettingsDialog(QDialog):
         self._vad_radio = QRadioButton(t.continuous)
         layout.addWidget(self._vad_radio)
 
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep)
+
+        self._continuous_cb = QCheckBox(
+            "Continuous conversation mode  (Xiaoai-style: auto turn-taking,\n"
+            "speak → translate → reply → auto-listen. Space = interrupt)"
+        )
+        self._continuous_cb.setChecked(True)
+        layout.addWidget(self._continuous_cb)
+
         return self._input_group
 
     def _create_history_group(self):
@@ -206,6 +220,30 @@ class QtSettingsDialog(QDialog):
         self._save_translated_audio_cb = QCheckBox("Save translated audio")
         self._save_translated_audio_cb.setChecked(True)
         layout.addWidget(self._save_translated_audio_cb)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep)
+
+        self._conversation_mode_cb = QCheckBox(
+            "Conversation mode  (use prior turns as translation context)"
+        )
+        self._conversation_mode_cb.setChecked(False)
+        layout.addWidget(self._conversation_mode_cb)
+
+        cw_row = QHBoxLayout()
+        cw_label = QLabel("Context window:")
+        self._context_window_spin = QSpinBox()
+        self._context_window_spin.setRange(0, 20)
+        self._context_window_spin.setValue(0)
+        self._context_window_spin.setFixedWidth(64)
+        cw_hint = QLabel("prior turns (0 = one-shot; best with Ollama)")
+        cw_hint.setStyleSheet("color: gray;")
+        cw_row.addWidget(cw_label)
+        cw_row.addWidget(self._context_window_spin)
+        cw_row.addWidget(cw_hint, 1)
+        layout.addLayout(cw_row)
 
         info_label = QLabel("History is saved to cache/history/ directory")
         info_label.setStyleSheet("color: gray;")
@@ -753,6 +791,7 @@ class QtSettingsDialog(QDialog):
         s.ttsEngine = self._engine_combo.currentText()
         s.voice = self._voice_combo.currentText()
         s.captureMode = "ptt" if self._ptt_radio.isChecked() else "vad"
+        s.continuousMode = self._continuous_cb.isChecked()
         s.refAudioPath = self._ref_audio_edit.text()
         s.emotion = self._emotion_combo.currentText()
         s.translationModel = self._trans_model_combo.currentText()
@@ -763,6 +802,10 @@ class QtSettingsDialog(QDialog):
         s.historyEnabled = self._history_enabled_cb.isChecked()
         s.saveOriginalAudio = self._save_original_audio_cb.isChecked()
         s.saveTranslatedAudio = self._save_translated_audio_cb.isChecked()
+
+        # Conversation mode
+        s.conversationMode = self._conversation_mode_cb.isChecked()
+        s.contextWindow = int(self._context_window_spin.value())
 
     @staticmethod
     def _extract_lang_code(text: str) -> str | None:

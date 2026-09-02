@@ -6,7 +6,7 @@ import logging
 import os
 import re
 import time
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 
@@ -16,6 +16,9 @@ from copytalker.core.exceptions import ModelError
 from copytalker.core.types import TranslationResult
 
 logger = logging.getLogger(__name__)
+
+# Model-name placeholders that select a backend rather than a real model.
+_BACKEND_SELECTORS = {"helsinki", "helsinki-nlp", "nllb", "auto", ""}
 
 
 class NLLBTranslator:
@@ -72,10 +75,8 @@ class NLLBTranslator:
 
     def _resolve_model_name(self, explicit: Optional[str], from_config: Optional[str]) -> str:
         """Resolve actual HuggingFace model name, ignoring backend selectors."""
-        BACKEND_SELECTORS = {"helsinki", "helsinki-nlp", "nllb", "auto", ""}
-
         for candidate in (explicit, from_config):
-            if candidate and candidate.lower().strip() not in BACKEND_SELECTORS:
+            if candidate and candidate.lower().strip() not in _BACKEND_SELECTORS:
                 if "/" in candidate:
                     return candidate
 
@@ -140,7 +141,7 @@ class NLLBTranslator:
             src_code = get_nllb_code(source_lang)
             tgt_code = get_nllb_code(target_lang)
             return src_code is not None and tgt_code is not None
-        except:
+        except Exception:
             return False
 
     def translate(
@@ -148,6 +149,7 @@ class NLLBTranslator:
         text: str,
         source_lang: str,
         target_lang: str,
+        context: Optional[List["TranslationResult"]] = None,
     ) -> TranslationResult:
         """
         Translate text using NLLB model.
@@ -156,6 +158,7 @@ class NLLBTranslator:
             text: Text to translate
             source_lang: Source language code
             target_lang: Target language code
+            context: Ignored by this MT backend (kept for API compatibility).
 
         Returns:
             TranslationResult with translated text

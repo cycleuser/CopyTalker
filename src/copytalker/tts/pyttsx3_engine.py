@@ -155,7 +155,7 @@ class Pyttsx3TTS(TTSEngineBase):
             import os
             try:
                 os.unlink(tmp_path)
-            except:
+            except OSError:
                 pass
             
             logger.debug(f"Pyttsx3 generated {len(audio_array)} samples")
@@ -207,7 +207,7 @@ class Pyttsx3TTS(TTSEngineBase):
         if self._engine is not None:
             try:
                 self._engine.stop()
-            except:
+            except Exception:
                 pass
             self._engine = None
         logger.debug("Pyttsx3 TTS closed")

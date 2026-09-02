@@ -1,7 +1,9 @@
 """Configuration management for CopyTalker."""
 
+from __future__ import annotations
+
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, asdict
 from pathlib import Path
 from typing import Optional, Dict, Any
 import logging
@@ -38,7 +40,8 @@ def get_device() -> str:
         try:
             if hasattr(torch.version, "hip") and torch.version.hip: rocm = True
             elif os.environ.get("ROCM_VISIBLE_DEVICES"): rocm = True
-        except: pass
+        except Exception:
+            pass
     except ImportError:
         pass
     except Exception:
@@ -97,7 +100,7 @@ class AudioConfig:
         if self.sample_rate not in [8000, 16000, 32000, 48000]:
             raise ValueError(f"Unsupported sample rate: {self.sample_rate}")
         if self.vad_aggressiveness not in [0, 1, 2, 3]:
-            raise ValueError(f"VAD must be 0-3: {self.vad_aggressiveness}")
+            raise ValueError(f"VAD aggressiveness must be 0-3: {self.vad_aggressiveness}")
         if self.frame_duration_ms not in [10, 20, 30]:
             raise ValueError(f"Frame duration must be 10/20/30 ms")
 
@@ -105,7 +108,7 @@ class AudioConfig:
 @dataclass
 class STTConfig:
     """STT configuration."""
-    model_size: str = "small"
+    model_size: str = "tiny"
     device: str = field(default_factory=get_device)
     compute_type: str = ""
     language: str = AUTO_DETECT_CODE
@@ -124,9 +127,9 @@ class STTConfig:
             else:
                 self.compute_type = "float32"
     def validate(self) -> None:
-        valid = ["tiny", "base", "small", "medium", "large"]
+        valid = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
         if self.model_size not in valid:
-            raise ValueError(f"Invalid model: {self.model_size}")
+            raise ValueError(f"Invalid model size: {self.model_size}")
 
 
 @dataclass
@@ -190,9 +193,6 @@ class CacheConfig:
     @property
     def tts_cache_dir(self) -> Path:
         return self.cache_dir / "tts"
-    @property
-    def history_dir(self) -> Path:
-        return self.cache_dir / "history"
 
 
 @dataclass
@@ -202,6 +202,9 @@ class HistoryConfig:
     save_original_audio: bool = True
     save_translated_audio: bool = True
     history_dir: Path = field(default_factory=lambda: get_default_cache_dir() / "history")
+    # Number of prior turns to feed back into the translator as context.
+    # 0 = one-shot translation (default), >0 = conversation mode.
+    context_window: int = 0
     def __post_init__(self):
         if isinstance(self.history_dir, str):
             self.history_dir = Path(self.history_dir)
@@ -229,12 +232,12 @@ class AppConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AppConfig":
         return cls(
-            audio=AudioConfig(**data.get("audio", {})),
-            stt=STTConfig(**data.get("stt", {})),
-            translation=TranslationConfig(**data.get("translation", {})),
-            tts=TTSConfig(**data.get("tts", {})),
-            cache=CacheConfig(**data.get("cache", {})),
-            history=HistoryConfig(**data.get("history", {})),
+            audio=AudioConfig(**_filter_fields(AudioConfig, data.get("audio", {}))),
+            stt=STTConfig(**_filter_fields(STTConfig, data.get("stt", {}))),
+            translation=TranslationConfig(**_filter_fields(TranslationConfig, data.get("translation", {}))),
+            tts=TTSConfig(**_filter_fields(TTSConfig, data.get("tts", {}))),
+            cache=CacheConfig(**_filter_fields(CacheConfig, data.get("cache", {}))),
+            history=HistoryConfig(**_filter_fields(HistoryConfig, data.get("history", {}))),
             debug=data.get("debug", False),
             log_level=data.get("log_level", "INFO"),
         )
@@ -259,16 +262,15 @@ class AppConfig:
             return cls.from_yaml(config_path)
         return cls()
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "audio": {"sample_rate": self.audio.sample_rate, "frame_duration_ms": self.audio.frame_duration_ms},
-            "stt": {"model_size": self.stt.model_size, "device": self.stt.device, "compute_type": self.stt.compute_type},
-            "translation": {"source_lang": self.translation.source_lang, "target_lang": self.translation.target_lang, "device": self.translation.device},
-            "tts": {"engine": self.tts.engine, "language": self.tts.language, "device": self.tts.device},
-            "cache": {"cache_dir": str(self.cache.cache_dir)},
-            "history": {"enabled": self.history.enabled, "save_original_audio": self.history.save_original_audio, "save_translated_audio": self.history.save_translated_audio, "history_dir": str(self.history.history_dir)},
-            "debug": self.debug,
-            "log_level": self.log_level,
-        }
+        def _serialise(obj: Any) -> Any:
+            if isinstance(obj, Path):
+                return str(obj)
+            if isinstance(obj, dict):
+                return {k: _serialise(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                return [_serialise(v) for v in obj]
+            return obj
+        return _serialise(asdict(self))
     def save(self, path: Optional[Path] = None) -> None:
         try:
             import yaml
@@ -281,6 +283,20 @@ class AppConfig:
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(self.to_dict(), f, default_flow_style=False)
         logger.info(f"Configuration saved to: {path}")
+
+
+def _filter_fields(cls: type, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep only dict keys that correspond to dataclass fields of *cls*.
+
+    Ignores unknown keys so loading a config with extra/legacy entries does
+    not crash. Also coerces ``Path``-typed fields from str.
+    """
+    valid = {f.name for f in fields(cls)}
+    out: Dict[str, Any] = {}
+    for k, v in data.items():
+        if k in valid:
+            out[k] = v
+    return out
 
 
 def setup_logging(config: Optional[AppConfig] = None) -> None:

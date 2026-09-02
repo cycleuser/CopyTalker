@@ -52,6 +52,9 @@ class QtAppState(QObject):
     historyEnabledChanged = Signal(bool)
     saveOriginalAudioChanged = Signal(bool)
     saveTranslatedAudioChanged = Signal(bool)
+    conversationModeChanged = Signal(bool)
+    contextWindowChanged = Signal(int)
+    continuousModeChanged = Signal(bool)
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -76,6 +79,13 @@ class QtAppState(QObject):
         self._history_enabled: bool = True
         self._save_original_audio: bool = True
         self._save_translated_audio: bool = True
+
+        # Conversation mode
+        self._conversation_mode: bool = False
+        self._context_window: int = 0
+
+        # Continuous conversation mode (Xiaoai-style auto turn-taking)
+        self._continuous_mode: bool = True
 
         # Input mode
         self._capture_mode: str = "ptt"  # "ptt" or "vad"
@@ -260,6 +270,39 @@ class QtAppState(QObject):
             self._save_translated_audio = value
             self.saveTranslatedAudioChanged.emit(value)
 
+    # Property: conversation_mode
+    @Property(bool, notify=conversationModeChanged)
+    def conversationMode(self) -> bool:
+        return self._conversation_mode
+
+    @conversationMode.setter
+    def conversationMode(self, value: bool) -> None:
+        if self._conversation_mode != value:
+            self._conversation_mode = value
+            self.conversationModeChanged.emit(value)
+
+    # Property: context_window
+    @Property(int, notify=contextWindowChanged)
+    def contextWindow(self) -> int:
+        return self._context_window
+
+    @contextWindow.setter
+    def contextWindow(self, value: int) -> None:
+        if self._context_window != value:
+            self._context_window = value
+            self.contextWindowChanged.emit(value)
+
+    # Property: continuous_mode
+    @Property(bool, notify=continuousModeChanged)
+    def continuousMode(self) -> bool:
+        return self._continuous_mode
+
+    @continuousMode.setter
+    def continuousMode(self, value: bool) -> None:
+        if self._continuous_mode != value:
+            self._continuous_mode = value
+            self.continuousModeChanged.emit(value)
+
 
 def build_app_config_from_qt(state: QtAppState) -> AppConfig:
     """Convert QtAppState to the AppConfig used by TranslationPipeline."""
@@ -287,6 +330,7 @@ def build_app_config_from_qt(state: QtAppState) -> AppConfig:
         enabled=state.historyEnabled,
         save_original_audio=state.saveOriginalAudio,
         save_translated_audio=state.saveTranslatedAudio,
+        context_window=state.contextWindow if state.conversationMode else 0,
     )
 
     config = AppConfig(

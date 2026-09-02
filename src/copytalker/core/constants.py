@@ -317,13 +317,20 @@ FISH_SPEECH_EMOTION_TAGS: List[str] = [
 
 # Model sizes (for user information)
 MODEL_SIZES: Dict[str, str] = {
+    # Whisper STT (default: tiny for speed)
     "whisper-tiny": "~75 MB",
     "whisper-base": "~145 MB",
     "whisper-small": "~465 MB",
     "whisper-medium": "~1.5 GB",
     "whisper-large": "~3 GB",
+    # Translation (default: Helsinki opus-mt per pair, smallest)
+    "opus-mt": "~300 MB (per language pair)",
     "nllb-200-distilled-600M": "~1.2 GB",
     "nllb-200-distilled-1.3B": "~2.6 GB",
+    "ollama-qwen3-0.6b": "~1.2 GB (quantized)",
+    # TTS (default: edge-tts cloud = 0 local)
+    "edge-tts": "0 MB (cloud)",
+    "pyttsx3": "0 MB (system TTS)",
     "kokoro-82M": "~330 MB",
     "indextts-v2": "~4 GB",
     "fish-speech-1.5": "~2 GB",

@@ -151,26 +151,30 @@ class TTSEngine(Protocol):
 @runtime_checkable
 class Translator(Protocol):
     """Protocol for translation engines."""
-    
+
     def translate(
         self,
         text: str,
         source_lang: str,
         target_lang: str,
+        context: Optional[List["TranslationResult"]] = None,
     ) -> TranslationResult:
         """
         Translate text between languages.
-        
+
         Args:
             text: Text to translate
             source_lang: Source language code
             target_lang: Target language code
-            
+            context: Optional prior turns for conversation-aware translation.
+                MT backends may ignore this; LLM backends use it as dialogue
+                history to improve coherence.
+
         Returns:
             TranslationResult with translated text
         """
         ...
-    
+
     def supports_pair(self, source_lang: str, target_lang: str) -> bool:
         """Check if language pair is supported."""
         ...

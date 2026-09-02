@@ -204,6 +204,30 @@ class CopyTalkerApp(QMainWindow):
         if self._settings_dialog:
             self._settings_dialog.set_running_state(True)
 
+        # Register FSM listener to update the PTT bar in continuous mode
+        pipeline = self._pipeline_ctrl.get_pipeline()
+        if pipeline and self._state.continuousMode:
+            pipeline.conversation_fsm.add_listener(self._on_conversation_state)
+            # Initial state display
+            self._on_conversation_state(pipeline.conversation_fsm.state)
+
+    def _on_conversation_state(self, state):
+        """Update PTT bar from the conversation FSM state."""
+        from copytalker.core.conversation import ConversationState
+
+        mode_map = {
+            ConversationState.IDLE: "idle",
+            ConversationState.LISTENING: "listening",
+            ConversationState.PROCESSING: "translating",
+            ConversationState.SPEAKING: "speaking",
+        }
+        mode = mode_map.get(state, "vad")
+        self._conversation_view.ptt_bar.set_mode(mode)
+        if mode == "listening":
+            self._start_level_polling()
+        else:
+            self._stop_level_polling()
+
     def _on_pipeline_stopped(self):
         self._state.isRunning = False
         self._stop_level_polling()
@@ -213,11 +237,17 @@ class CopyTalkerApp(QMainWindow):
             self._settings_dialog.set_running_state(False)
 
     def _on_ptt_pressed(self):
-        if self._state.isRunning and self._state.captureMode == "ptt":
+        if not self._state.isRunning:
+            return
+        # In continuous mode, Space = barge-in (interrupt assistant speech)
+        if self._state.continuousMode:
+            self._pipeline_ctrl.barge_in()
+            return
+        if self._state.captureMode == "ptt":
             self._pipeline_ctrl.start_ptt_capture()
 
     def _on_ptt_released(self):
-        if self._state.isRunning and self._state.captureMode == "ptt":
+        if self._state.isRunning and self._state.captureMode == "ptt" and not self._state.continuousMode:
             self._pipeline_ctrl.stop_ptt_capture()
 
     def _on_ptt_recording_event(self, is_recording: bool):
@@ -228,6 +258,9 @@ class CopyTalkerApp(QMainWindow):
             self._stop_level_polling()
 
     def _on_synthesis_done(self):
+        # In continuous mode, the FSM listener handles bar updates.
+        if self._state.continuousMode:
+            return
         if self._state.captureMode == "ptt":
             self._conversation_view.ptt_bar.set_mode("ready")
         else:

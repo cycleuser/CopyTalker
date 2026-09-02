@@ -15,6 +15,11 @@ from copytalker.core.types import AudioArray, TranscriptionResult
 
 logger = logging.getLogger(__name__)
 
+# CJK languages don't use spaces between words -> count characters instead.
+_CJK_LANGUAGES = {"ja", "zh", "ko", "yue"}
+# Punctuation/whitespace stripped when counting CJK characters.
+_CJK_STRIP_CHARS = " \t\n\r.,!?;:。、！？；：「」『』（）()[]【】…—ー～〜·・"
+
 
 class WhisperRecognizer:
     """
@@ -121,12 +126,10 @@ class WhisperRecognizer:
             # Filter by minimum word/character count
             # CJK languages (ja, zh, ko) don't use spaces between words,
             # so we count characters instead of words for those languages.
-            CJK_LANGUAGES = {"ja", "zh", "ko", "yue"}
-            if normalized_lang in CJK_LANGUAGES:
+            if normalized_lang in _CJK_LANGUAGES:
                 # For CJK: count non-whitespace, non-punctuation characters
                 stripped = text.strip() if text else ""
-                # Remove common punctuation and whitespace
-                for ch in " \t\n\r.,!?;:。、！？；：「」『』（）()[]【】…—ー～〜·・":
+                for ch in _CJK_STRIP_CHARS:
                     stripped = stripped.replace(ch, "")
                 char_count = len(stripped)
                 min_chars = max(2, self.config.min_words)

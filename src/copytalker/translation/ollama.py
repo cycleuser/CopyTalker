@@ -4,7 +4,7 @@ Ollama local LLM translation backend.
 
 import logging
 import time
-from typing import Optional
+from typing import List, Optional
 
 import requests
 
@@ -98,28 +98,56 @@ class OllamaTranslator:
             logger.error(f"Failed to list Ollama models: {e}")
         return []
 
-    def _build_prompt(self, text: str, source_lang: str, target_lang: str) -> str:
-        """Build translation prompt for the LLM."""
+    def _build_prompt(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+        context: Optional[List[TranslationResult]] = None,
+    ) -> str:
+        """Build translation prompt for the LLM, optionally with prior turns."""
         src_name = LANG_CODE_TO_NAME.get(source_lang, source_lang)
         tgt_name = LANG_CODE_TO_NAME.get(target_lang, target_lang)
 
-        return (
+        parts: list[str] = []
+        parts.append(
             f"You are a professional translator. Translate the following text "
             f"from {src_name} to {tgt_name}. "
-            f"Only output the translation, nothing else.\n\n"
-            f"Source ({src_name}): {text}\n\n"
-            f"Translation ({tgt_name}):"
+            f"Only output the translation, nothing else."
         )
 
+        if context:
+            parts.append("\nPrevious turns (use for context/coherence):")
+            for turn in context:
+                src_label = LANG_CODE_TO_NAME.get(turn.source_lang, turn.source_lang)
+                tgt_label = LANG_CODE_TO_NAME.get(turn.target_lang, turn.target_lang)
+                parts.append(f"Source ({src_label}): {turn.original_text}")
+                parts.append(f"Translation ({tgt_label}): {turn.translated_text}")
+
+        parts.append(f"\nSource ({src_name}): {text}")
+        parts.append(f"\nTranslation ({tgt_name}):")
+        return "\n".join(parts)
+
     def supports_pair(self, source_lang: str, target_lang: str) -> bool:
-        """Check if this backend supports the language pair."""
-        return self._check_availability()
+        """Check if this backend supports the language pair.
+
+        An LLM can attempt any pair, but we only claim support for languages
+        we can name in the prompt. Availability of the server is checked too.
+        """
+        if not self._check_availability():
+            return False
+        known = set(LANG_CODE_TO_NAME.keys())
+        # 'auto' source is always acceptable
+        src_ok = source_lang in known or source_lang == "auto"
+        tgt_ok = target_lang in known
+        return src_ok and tgt_ok
 
     def translate(
         self,
         text: str,
         source_lang: str,
         target_lang: str,
+        context: Optional[List[TranslationResult]] = None,
     ) -> TranslationResult:
         """
         Translate text using Ollama LLM.
@@ -128,6 +156,7 @@ class OllamaTranslator:
             text: Text to translate
             source_lang: Source language code
             target_lang: Target language code
+            context: Optional prior turns for conversation-aware translation.
 
         Returns:
             TranslationResult with translated text
@@ -149,7 +178,7 @@ class OllamaTranslator:
 
         start_time = time.time()
 
-        prompt = self._build_prompt(text, source_lang, target_lang)
+        prompt = self._build_prompt(text, source_lang, target_lang, context)
 
         try:
             payload = {

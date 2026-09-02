@@ -61,6 +61,9 @@ class PushToTalkBar(QWidget):
             "recording": "Recording... Release [Space] to translate",
             "processing": "Processing...",
             "vad": "Listening... (continuous mode)",
+            "listening": "🎤 Listening... (speak now)",
+            "translating": "⏳ Translating...",
+            "speaking": "🔊 Speaking... (press [Space] to interrupt)",
         }
         self._setup_ui()
 

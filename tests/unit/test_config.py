@@ -65,7 +65,7 @@ class TestSTTConfig:
         """Test default configuration values."""
         config = STTConfig()
         
-        assert config.model_size == "small"
+        assert config.model_size == "tiny"
         assert config.beam_size == 5
         assert config.language == "auto"
     
@@ -113,7 +113,7 @@ class TestTTSConfig:
         """Test default configuration values."""
         config = TTSConfig()
         
-        assert config.engine == "kokoro"
+        assert config.engine == "auto"
         assert config.speed == 1.0
     
     def test_validate_engine(self):
